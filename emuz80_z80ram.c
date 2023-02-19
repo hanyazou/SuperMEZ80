@@ -90,7 +90,6 @@
 
 #define Z80_CLK 6000000UL       // Z80 clock frequency(Max 16MHz)
 
-#define ROM_SIZE 0x100          // 256 bytes
 #define UART_DREG 0x01          // Data REG
 #define UART_CREG 0x00          // Control REG
 #define DISK_REG_DRIVE   10     // fdc-port: # of drive
@@ -139,6 +138,13 @@ FIL files[NUM_FILES];
 int num_files = 0;
 
 #define NUM_DRIVES (sizeof(drives)/sizeof(*drives))
+
+const unsigned char rom[] = {
+// Initial program loader at 0x0000
+//#include "ipl.inc"
+// Modified boot sector at 0x0000
+#include "boot.inc"
+};
 
 // Address Bus
 union {
@@ -266,6 +272,8 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
             }
 
             #ifdef CPM_MEM_DEBUG
+            util_hexdump_sum("buf: ", buf, SECTOR_SIZE);
+
             // read back the SRAM
             uint16_t addr = ((uint16_t)disk_dmah << 8) | disk_dmal;
             printf("f_read(): SRAM address: %04x\n\r", addr);
@@ -276,10 +284,12 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
                 LATB = ab.l;
                 addr++;
                 LATA4 = 0;      // activate /OE
+                for (int j = 0; j < 50; j++)
+                    asm("nop");
                 buf[i] = PORTC;
                 LATA4 = 1;      // deactivate /OE
             }
-            util_hexdump("RAM: ", buf, SECTOR_SIZE);
+            util_hexdump_sum("RAM: ", buf, SECTOR_SIZE);
             #endif  // CPM_MEM_DEBUG
         } else {
             //
@@ -464,7 +474,7 @@ void main(void) {
     //
     // Transfer ROM image to the SRAM
     //
-    for(i = 0; i < ROM_SIZE; i++) {
+    for(i = 0; i < sizeof(rom); i++) {
         ab.w = i;
         LATD = ab.h;
         LATB = ab.l;
@@ -603,8 +613,3 @@ void main(void) {
 
     while(1);  // All things come to those who wait
 }
-
-const unsigned char rom[ROM_SIZE] = {
-// Initial program loader at 0x0000
-#include "ipl.inc"
-};
