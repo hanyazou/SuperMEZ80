@@ -9,8 +9,9 @@ PORT := /dev/tty.usbmodem1444301
 PIC := 18F47Q43
 
 FATFS_SRCS := $(FATFS_DIR)/source/ff.c
-DISK_SRCS := $(DISKIO_DIR)/SDCard.c $(DISKIO_DIR)/SPI.c $(DISKIO_DIR)/diskio.c \
-    $(DISKIO_DIR)/utils.c
+DISK_SRCS := $(DISKIO_DIR)/SDCard.c $(DISKIO_DIR)/SPI0.c $(DISKIO_DIR)/SPI1.c \
+    $(DISKIO_DIR)/mcp23s08.c \
+    $(DISKIO_DIR)/diskio.c $(DISKIO_DIR)/utils.c
 SRCS := $(SRC_DIR)/emuz80_z80ram.c 
 
 INCS :=-I$(SRC_DIR) -I$(DISKIO_DIR) -I$(FATFS_DIR)/source
