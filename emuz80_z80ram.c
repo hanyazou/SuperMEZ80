@@ -30,7 +30,7 @@
 #include <mcp23s08.h>
 #include <utils.h>
 
-//#define CPM_DISK_DEBUG
+#define CPM_DISK_DEBUG
 //#define CPM_DISK_DEBUG_VERBOSE
 //#define CPM_MEM_DEBUG
 
@@ -57,6 +57,8 @@
 #define SPI_CLOCK_2MHZ 0        // Maximum speed w/o any wait (1~2 MHz)
 #define NUM_FILES 8
 #define SECTOR_SIZE 128
+
+#define HIGH_ADDR_MASK    0x0001c000
 
 #define GPIO_CS0    0
 #define GPIO_CS1    1
@@ -120,9 +122,29 @@ void putch(char c) {
     U3TXB = c;                  // Write data
 }
 
+void test_high_addr(void)
+{
+    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A14, MCP23S08_PINMODE_OUTPUT);
+    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A15, MCP23S08_PINMODE_OUTPUT);
+    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A16, MCP23S08_PINMODE_OUTPUT);
+    TRISC = 0x00;
+    while (1) {
+        printf("testing ... (flipping A14, A15)\n\r");
+        for (int i = 0; i < 100; i++) {
+            LATC = i;
+            mcp23s08_write(MCP23S08_ctx, GPIO_A14, ((i >> 0) & 1));
+            mcp23s08_write(MCP23S08_ctx, GPIO_A15, ((i >> 1) & 1));
+            __delay_ms(10);
+            //mcp23s08_dump_regs(MCP23S08_ctx, "");
+        }
+    }
+}
+
 void acquire_addrbus(uint32_t addr)
 {
+    // XXX ???
     mcp23s08_pinmode(MCP23S08_ctx,GPIO_NMI, MCP23S08_PINMODE_OUTPUT);
+
     mcp23s08_write(MCP23S08_ctx, GPIO_A14, ((addr >> 14) & 1));
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_A14, MCP23S08_PINMODE_OUTPUT);
     mcp23s08_write(MCP23S08_ctx, GPIO_A15, ((addr >> 15) & 1));
@@ -136,6 +158,79 @@ void release_addrbus(void)
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_A14, MCP23S08_PINMODE_INPUT);
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_A15, MCP23S08_PINMODE_INPUT);
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_A16, MCP23S08_PINMODE_INPUT);
+}
+
+void dma_write_to_sram(uint32_t dest, uint8_t *buf, int len)
+{
+    uint16_t addr = (dest & HIGH_ADDR_MASK);
+    uint16_t second_half = (dest & ~HIGH_ADDR_MASK) + SECTOR_SIZE - (~HIGH_ADDR_MASK + 1);
+    int i;
+
+    acquire_addrbus(dest);
+    TRISC = 0x00;       // Set as output to write to the SRAM
+    for(i = 0; i < SECTOR_SIZE - second_half; i++) {
+        ab.w = addr;
+        LATD = ab.h;
+        LATB = ab.l;
+        addr++;
+        LATA2 = 0;      // activate /WE
+        LATC = disk_buf[i];
+        LATA2 = 1;      // deactivate /WE
+    }
+
+#if 0
+    if (0 < second_half)
+        acquire_addrbus(dest + i);
+    for( ; i < SECTOR_SIZE; i++) {
+        ab.w = addr;
+        LATD = ab.h;
+        LATB = ab.l;
+        addr++;
+        LATA2 = 0;      // activate /WE
+        LATC = disk_buf[i];
+        LATA2 = 1;      // deactivate /WE
+    }
+#endif
+
+    LATC=0;
+    release_addrbus();
+}
+
+void dma_read_from_sram(uint32_t dest, uint8_t *buf, int len)
+{
+    uint16_t addr = (dest & HIGH_ADDR_MASK);
+    uint16_t second_half = (addr & ~HIGH_ADDR_MASK) + SECTOR_SIZE - (~HIGH_ADDR_MASK + 1);
+    int i;
+
+    acquire_addrbus(dest);
+    TRISC = 0xff;       // Set as input to read from the SRAM
+    for(i = 0; i < SECTOR_SIZE - second_half; i++) {
+        ab.w = addr;
+        LATD = ab.h;
+        LATB = ab.l;
+        addr++;
+        LATA4 = 0;      // activate /OE
+        for (int j = 0; j < 50; j++)
+            asm("nop");
+        disk_buf[i] = PORTC;
+        LATA4 = 1;      // deactivate /OE
+    }
+
+    if (0 < second_half)
+        acquire_addrbus(dest + i);
+    for( ; i < SECTOR_SIZE; i++) {
+        ab.w = addr;
+        LATD = ab.h;
+        LATB = ab.l;
+        addr++;
+        LATA4 = 0;      // activate /OE
+        for (int j = 0; j < 50; j++)
+            asm("nop");
+        disk_buf[i] = PORTC;
+        LATA4 = 1;      // deactivate /OE
+    }
+
+    release_addrbus();
 }
 
 // Never called, logically
@@ -300,6 +395,12 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
             disk_stat = DISK_ST_ERROR;
             goto disk_io_done;
         }
+#if 0
+        disk_buf[3] = 'C';
+        disk_buf[4] = 'o';
+        disk_buf[5] = 'o';
+        disk_buf[6] = 'l';
+#endif
 
         #ifdef CPM_DISK_DEBUG_VERBOSE
         util_hexdump_sum("buf: ", disk_buf, SECTOR_SIZE);
@@ -311,6 +412,7 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
             //
             // transfer read data to SRAM
             uint16_t addr = ((uint16_t)disk_dmah << 8) | disk_dmal;
+#if 0
             TRISC = 0x00;       // Set as output to write to the SRAM
             for(int i = 0; i < SECTOR_SIZE; i++) {
                 ab.w = addr;
@@ -321,24 +423,20 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
                 LATC = disk_buf[i];
                 LATA2 = 1;      // deactivate /WE
             }
+#else
+            dma_write_to_sram(addr, disk_buf, SECTOR_SIZE);
+#endif
             disk_datap = NULL;
 
+#if 1
+    for (int j = 0; j < 1000; j++)
+        asm("nop");
+#endif
             #ifdef CPM_MEM_DEBUG
             // read back the SRAM
             uint16_t addr = ((uint16_t)disk_dmah << 8) | disk_dmal;
             printf("f_read(): SRAM address: %04x\n\r", addr);
-            TRISC = 0xff;       // Set as input to read from the SRAM
-            for(int i = 0; i < SECTOR_SIZE; i++) {
-                ab.w = addr;
-                LATD = ab.h;
-                LATB = ab.l;
-                addr++;
-                LATA4 = 0;      // activate /OE
-                for (int j = 0; j < 50; j++)
-                    asm("nop");
-                disk_buf[i] = PORTC;
-                LATA4 = 1;      // deactivate /OE
-            }
+            dma_read_from_sram(addr, disk_buf, SECTOR_SIZE);
             util_hexdump_sum("RAM: ", disk_buf, SECTOR_SIZE);
             #endif  // CPM_MEM_DEBUG
         } else {
@@ -363,16 +461,7 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
             //
             // transfer write data from SRAM to the buffer
             uint16_t addr = ((uint16_t)disk_dmah << 8) | disk_dmal;
-            TRISC = 0xff;       // Set as input to read from the SRAM
-            for(int i = 0; i < SECTOR_SIZE; i++) {
-                ab.w = addr;
-                LATD = ab.h;
-                LATB = ab.l;
-                addr++;
-                LATA4 = 0;      // activate /OE
-                disk_buf[i] = LATC;
-                LATA4 = 1;      // deactivate /OE
-            }
+            dma_read_from_sram(addr, disk_buf, SECTOR_SIZE);
         } else {
             //
             // non DMA write
@@ -410,11 +499,16 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
     TRISB = 0xff;           // A7-A0 pin
     TRISC = 0xff;           // D7-D0 pin
 
+    // XXX
+    LATC = 0x00;            // dummy pattern
+
     RA4PPS = 0x01;          // CLC1 -> RA4 -> /OE
     RA2PPS = 0x02;          // CLC2 -> RA2 -> /WE
 
-#if 0
-    for (int j = 0; j < 50; j++)
+#if 1
+    for (int j = 0; j < 30000; j++)
+        asm("nop");
+    for (int j = 0; j < 30000; j++)
         asm("nop");
 #endif
 
@@ -517,6 +611,9 @@ void main(void) {
     mcp23s08_write(MCP23S08_ctx, GPIO_INT, 1);
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_INT, MCP23S08_PINMODE_OUTPUT);
     mcp23s08_write(MCP23S08_ctx, GPIO_NMI, 1);
+    mcp23s08_pinmode(MCP23S08_ctx, GPIO_NMI, MCP23S08_PINMODE_OUTPUT);
+
+    //test_high_addr();
 
     //
     // Initialize SD Card
@@ -529,7 +626,8 @@ void main(void) {
         for (unsigned int drive = 0; drive < NUM_DRIVES && num_files < NUM_FILES; drive++) {
             char drive_letter = 'A' + drive;
             char buf[22];
-            sprintf(buf, "CPMDISKS/DRIVE%c.DSK", drive_letter);
+            //sprintf(buf, "CPMDISKS/DRIVE%c.DSK", drive_letter);
+            sprintf(buf, "CPMDISKS/DRIVE%c.ORG", drive_letter);
             if (f_open(&files[num_files], buf, FA_READ|FA_WRITE) == FR_OK) {
                 printf("Image file DRIVE%c.DSK is assigned to drive %c\n\r",
                        drive_letter, drive_letter);
@@ -555,6 +653,7 @@ void main(void) {
         LATC = rom[i];
         LATA2 = 1;      // /WE=1
     }
+    LATC = 0;
     release_addrbus();
 
     // Address bus A15-A8 pin (A14:/RFSH, A15:/WAIT)
