@@ -622,7 +622,10 @@ void main(void) {
     // Initialize SD Card
     //
     SDCard_init(SPI_CLOCK_100KHZ, SPI_CLOCK_2MHZ, /* timeout */ 100);
-    if (f_mount(&fs, "0://", 1) == FR_OK) {
+    if (f_mount(&fs, "0://", 1) != FR_OK) {
+        printf("Failed to mount SD Card mount.\n\r");
+        while (1);
+    }
         //
         // Open disk images
         //
@@ -638,7 +641,6 @@ void main(void) {
                 num_files++;
             }
         }
-    }
     if (drives[0].filep == NULL) {
         printf("No boot disk.\n\r");
         while (1);
