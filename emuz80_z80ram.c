@@ -59,6 +59,7 @@
 #define SECTOR_SIZE 128
 
 #define HIGH_ADDR_MASK    0x0001c000
+#define LOW_ADDR_MASK     0x00003fff
 
 #define GPIO_CS0    0
 #define GPIO_CS1    1
@@ -162,10 +163,12 @@ void release_addrbus(void)
 
 void dma_write_to_sram(uint32_t dest, uint8_t *buf, int len)
 {
-    uint16_t addr = (dest & HIGH_ADDR_MASK);
-    uint16_t second_half = (dest & ~HIGH_ADDR_MASK) + SECTOR_SIZE - (~HIGH_ADDR_MASK + 1);
+    uint16_t addr = (dest & LOW_ADDR_MASK);
+    uint16_t second_half = 0;
     int i;
 
+    if (LOW_ADDR_MASK + 1 < addr + SECTOR_SIZE)
+        second_half = (addr + SECTOR_SIZE) - (LOW_ADDR_MASK + 1);
     acquire_addrbus(dest);
     TRISC = 0x00;       // Set as output to write to the SRAM
     for(i = 0; i < SECTOR_SIZE - second_half; i++) {
