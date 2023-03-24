@@ -177,7 +177,9 @@ void dma_write_to_sram(uint32_t dest, uint8_t *buf, int len)
         LATB = ab.l;
         addr++;
         LATA2 = 0;      // activate /WE
+        //__delay_ms(1);
         LATC = disk_buf[i];
+        //__delay_ms(1);
         LATA2 = 1;      // deactivate /WE
     }
 
@@ -234,6 +236,133 @@ void dma_read_from_sram(uint32_t dest, uint8_t *buf, int len)
     }
 
     release_addrbus();
+}
+
+void setup_second_half(void)
+{
+    // Address bus A15-A8 pin (A14:/RFSH, A15:/WAIT)
+    ANSELD = 0x00;      // Disable analog function
+    WPUD = 0xff;        // Week pull up
+    TRISD = 0xff;       // Set as input
+
+    // Address bus A7-A0 pin
+    ANSELB = 0x00;      // Disable analog function
+    WPUB = 0xff;        // Week pull up
+    TRISB = 0xff;       // Set as input
+
+    // Data bus D7-D0 input pin
+    ANSELC = 0x00;      // Disable analog function
+    WPUC = 0xff;        // Week pull up
+    TRISC = 0xff;       // Set as input
+
+    // /IORQ (RA0) input pin
+    ANSELA0 = 0;        // Disable analog function
+    WPUA0 = 1;          // Week pull up
+    TRISA0 = 1;         // Set as input
+
+    // /MREQ (RA1) input pin
+    ANSELA1 = 0;        // Disable analog function
+    WPUA1 = 1;          // Week pull up
+    TRISA1 = 1;         // Set as input
+
+    // /RD (RA5) input pin
+    ANSELA5 = 0;        // Disable analog function
+    WPUA5 = 1;          // Week pull up
+    TRISA5 = 1;         // Set as input
+
+    // /RFSH (RD6) input pin
+    ANSELD6 = 0;        // Disable analog function
+    WPUD6 = 1;          // Week pull up
+    TRISD6 = 1;         // Set as input
+
+    // /WAIT (RD7) output pin
+    ANSELD7 = 0;        // Disable analog function
+    LATD7 = 1;          // WAIT
+    TRISD7 = 0;         // Set as output
+
+
+    //========== CLC pin assign ===========
+    // 0,1,4,5 = Port A, C
+    // 2,3,6,7 = Port B, D
+    CLCIN0PPS = 0x01;   // RA1 <- /MREQ
+    CLCIN1PPS = 0x00;   // RA0 <- /IORQ
+    CLCIN2PPS = 0x1e;   // RD6 <- /RFSH
+    CLCIN4PPS = 0x05;   // RA5 <- /RD
+
+    // 1,2,5,6 = Port A, C
+    // 3,4,7,8 = Port B, D
+    RA4PPS = 0x01;       // CLC1 -> RA4 -> /OE
+    RA2PPS = 0x02;       // CLC2 -> RA2 -> /WE
+    RD7PPS = 0x03;       // CLC3 -> RD7 -> /WAIT
+
+    //========== CLC1 /OE ==========
+    CLCSELECT = 0;       // CLC1 select
+
+    CLCnSEL0 = 0;        // CLCIN0PPS <- /MREQ
+    CLCnSEL1 = 2;        // CLCIN2PPS <- /RFSH
+    CLCnSEL2 = 4;        // CLCIN4PPS <- /RD
+    CLCnSEL3 = 127;      // NC
+
+    CLCnGLS0 = 0x01;     // /MREQ inverted
+    CLCnGLS1 = 0x08;     // /RFSH noninverted
+    CLCnGLS2 = 0x10;     // RD inverted
+    CLCnGLS3 = 0x40;     // 1(0 inverted) for AND gate
+
+    CLCnPOL = 0x80;      // inverted the CLC1 output
+    CLCnCON = 0x82;      // 4 input AND
+
+    //========== CLC2 /WE ==========
+    CLCSELECT = 1;       // CLC2 select
+
+    CLCnSEL0 = 0;        // CLCIN0PPS <- /MREQ
+    CLCnSEL1 = 2;        // CLCIN2PPS <- /RFSH
+    CLCnSEL2 = 4;        // CLCIN4PPS <- /RD
+    CLCnSEL3 = 127;      // NC
+
+    CLCnGLS0 = 0x01;     // /MREQ inverted
+    CLCnGLS1 = 0x08;     // /RFSH noninverted
+    CLCnGLS2 = 0x20;     // /RD noninverted
+    CLCnGLS3 = 0x40;     // 1(0 inverted) for AND gate
+
+    CLCnPOL = 0x80;      // inverted the CLC2 output
+    CLCnCON = 0x82;      // 4 input AND
+
+    //========== CLC3 /WAIT ==========
+    CLCSELECT = 2;       // CLC3 select
+
+    CLCnSEL0 = 1;        // D-FF CLK <- /IORQ
+    CLCnSEL1 = 127;      // D-FF D NC
+    CLCnSEL2 = 127;      // D-FF S NC
+    CLCnSEL3 = 127;      // D-FF R NC
+
+    CLCnGLS0 = 0x1;      // LCG1D1N
+    CLCnGLS1 = 0x0;      // Connect none
+    CLCnGLS2 = 0x0;      // Connect none
+    CLCnGLS3 = 0x0;      // Connect none
+
+    CLCnPOL = 0x82;      // inverted the CLC3 output
+    CLCnCON = 0x8c;      // Select D-FF, falling edge inturrupt
+
+    CLCDATA = 0x0;       // Clear all CLC outs
+
+#if 0
+    // Unlock IVT
+    IVTLOCK = 0x55;
+    IVTLOCK = 0xAA;
+    IVTLOCKbits.IVTLOCKED = 0x00;
+
+    // Default IVT base address
+    IVTBASE = 0x000008;
+
+    // Lock IVT
+    IVTLOCK = 0x55;
+    IVTLOCK = 0xAA;
+    IVTLOCKbits.IVTLOCKED = 0x01;
+
+    // CLC VI enable
+    CLC3IF = 0;          // Clear the CLC interrupt flag
+    CLC3IE = 1;          // Enabling CLC3 interrupt
+#endif
 }
 
 // Never called, logically
@@ -431,7 +560,8 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
 #endif
             disk_datap = NULL;
 
-#if 1
+        __delay_ms(100);
+#if 0
     for (int j = 0; j < 1000; j++)
         asm("nop");
 #endif
@@ -502,16 +632,16 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
     TRISB = 0xff;           // A7-A0 pin
     TRISC = 0xff;           // D7-D0 pin
 
-    // XXX
-    LATC = 0x00;            // dummy pattern
-
     RA4PPS = 0x01;          // CLC1 -> RA4 -> /OE
     RA2PPS = 0x02;          // CLC2 -> RA2 -> /WE
 
-#if 1
-    for (int j = 0; j < 30000; j++)
-        asm("nop");
-    for (int j = 0; j < 30000; j++)
+    // XXX
+    LATC = 0x00;            // dummy pattern
+    setup_second_half();
+    // XXX
+    __delay_ms(1);
+#if 0
+    for (int j = 0; j < 50; j++)
         asm("nop");
 #endif
 
@@ -601,6 +731,9 @@ void main(void) {
     RA2PPS = 0x00;      // LATA2 -> RA2
 
     printf("\n\r");
+    printf("wait programmer ...");
+    __delay_ms(2000);
+    printf("\n\r\n\r");
     //
     // Say Hello to SPI I/O expander MCP23S08
     //
@@ -782,6 +915,9 @@ void main(void) {
     // CLC VI enable
     CLC3IF = 0;          // Clear the CLC interrupt flag
     CLC3IE = 1;          // Enabling CLC3 interrupt
+
+    // XXX
+    __delay_ms(1);
 
     // Z80 start
     GIE = 1;             // Global interrupt enable
