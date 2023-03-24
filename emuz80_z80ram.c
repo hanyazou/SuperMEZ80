@@ -123,29 +123,8 @@ void putch(char c) {
     U3TXB = c;                  // Write data
 }
 
-void test_high_addr(void)
-{
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A14, MCP23S08_PINMODE_OUTPUT);
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A15, MCP23S08_PINMODE_OUTPUT);
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A16, MCP23S08_PINMODE_OUTPUT);
-    TRISC = 0x00;
-    while (1) {
-        printf("testing ... (flipping A14, A15)\n\r");
-        for (int i = 0; i < 100; i++) {
-            LATC = i;
-            mcp23s08_write(MCP23S08_ctx, GPIO_A14, ((i >> 0) & 1));
-            mcp23s08_write(MCP23S08_ctx, GPIO_A15, ((i >> 1) & 1));
-            __delay_ms(10);
-            //mcp23s08_dump_regs(MCP23S08_ctx, "");
-        }
-    }
-}
-
 void acquire_addrbus(uint32_t addr)
 {
-    // XXX ???
-    mcp23s08_pinmode(MCP23S08_ctx,GPIO_NMI, MCP23S08_PINMODE_OUTPUT);
-
     mcp23s08_write(MCP23S08_ctx, GPIO_A14, ((addr >> 14) & 1));
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_A14, MCP23S08_PINMODE_OUTPUT);
     mcp23s08_write(MCP23S08_ctx, GPIO_A15, ((addr >> 15) & 1));
@@ -400,12 +379,6 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
             disk_stat = DISK_ST_ERROR;
             goto disk_io_done;
         }
-#if 0
-        disk_buf[3] = 'C';
-        disk_buf[4] = 'o';
-        disk_buf[5] = 'o';
-        disk_buf[6] = 'l';
-#endif
 
         #ifdef CPM_DISK_DEBUG_VERBOSE
         util_hexdump_sum("buf: ", disk_buf, SECTOR_SIZE);
@@ -417,25 +390,12 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
             //
             // transfer read data to SRAM
             uint16_t addr = ((uint16_t)disk_dmah << 8) | disk_dmal;
-#if 0
-            TRISC = 0x00;       // Set as output to write to the SRAM
-            for(int i = 0; i < SECTOR_SIZE; i++) {
-                ab.w = addr;
-                LATD = ab.h;
-                LATB = ab.l;
-                addr++;
-                LATA2 = 0;      // activate /WE
-                LATC = disk_buf[i];
-                LATA2 = 1;      // deactivate /WE
-            }
-#else
             dma_write_to_sram(addr, disk_buf, SECTOR_SIZE);
-#endif
             disk_datap = NULL;
 
 #if 1
-    for (int j = 0; j < 1000; j++)
-        asm("nop");
+            for (int j = 0; j < 1000; j++)
+                asm("nop");
 #endif
             #ifdef CPM_MEM_DEBUG
             // read back the SRAM
@@ -614,8 +574,6 @@ void main(void) {
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_INT, MCP23S08_PINMODE_OUTPUT);
     mcp23s08_write(MCP23S08_ctx, GPIO_NMI, 1);
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_NMI, MCP23S08_PINMODE_OUTPUT);
-
-    //test_high_addr();
 
     //
     // Initialize SD Card
