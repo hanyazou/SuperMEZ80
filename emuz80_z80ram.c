@@ -510,12 +510,9 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
     RA4PPS = 0x01;          // CLC1 -> RA4 -> /OE
     RA2PPS = 0x02;          // CLC2 -> RA2 -> /WE
 
-#if 1
-    for (int j = 0; j < 30000; j++)
-        asm("nop");
-    for (int j = 0; j < 30000; j++)
-        asm("nop");
-#endif
+    // XXX, FIXME
+    // It seems that some wait required after direct memory access.
+    __delay_ms(1);
 
     LATE0 = 1;              // /BUSREQ is deactive
 
@@ -784,6 +781,10 @@ void main(void) {
     // CLC VI enable
     CLC3IF = 0;          // Clear the CLC interrupt flag
     CLC3IE = 1;          // Enabling CLC3 interrupt
+
+    // XXX, FIXME
+    // It seems that some wait required after direct memory access.
+    __delay_ms(1);
 
     // Z80 start
     GIE = 1;             // Global interrupt enable
