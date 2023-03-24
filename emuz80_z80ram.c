@@ -30,7 +30,7 @@
 #include <mcp23s08.h>
 #include <utils.h>
 
-#define CPM_DISK_DEBUG
+//#define CPM_DISK_DEBUG
 //#define CPM_DISK_DEBUG_VERBOSE
 //#define CPM_MEM_DEBUG
 
