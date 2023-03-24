@@ -173,7 +173,7 @@ void dma_write_to_sram(uint32_t dest, uint8_t *buf, int len)
         LATA2 = 1;      // deactivate /WE
     }
 
-    LATC=0;
+    LATC = 0;
     release_addrbus();
 }
 
@@ -214,6 +214,7 @@ void dma_read_from_sram(uint32_t dest, uint8_t *buf, int len)
         LATA4 = 1;      // deactivate /OE
     }
 
+    LATC = 0;
     release_addrbus();
 }
 
@@ -393,10 +394,6 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
             dma_write_to_sram(addr, disk_buf, SECTOR_SIZE);
             disk_datap = NULL;
 
-#if 1
-            for (int j = 0; j < 1000; j++)
-                asm("nop");
-#endif
             #ifdef CPM_MEM_DEBUG
             // read back the SRAM
             uint16_t addr = ((uint16_t)disk_dmah << 8) | disk_dmal;
@@ -463,9 +460,6 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
     TRISD = 0x7f;           // A15-A8 pin (A14:/RFSH, A15:/WAIT)
     TRISB = 0xff;           // A7-A0 pin
     TRISC = 0xff;           // D7-D0 pin
-
-    // XXX
-    LATC = 0x00;            // dummy pattern
 
     RA4PPS = 0x01;          // CLC1 -> RA4 -> /OE
     RA2PPS = 0x02;          // CLC2 -> RA2 -> /WE
