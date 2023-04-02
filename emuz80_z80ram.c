@@ -67,6 +67,8 @@
 #define HW_CTRL_RESET        (1 << 6)
 #define HW_CTRL_HALT         (1 << 7)
 
+#define MON_DUMP         170    // dump registers
+
 #define SPI_CLOCK_100KHZ 10     // Determined by actual measurement
 #define SPI_CLOCK_2MHZ   0      // Maximum speed w/o any wait (1~2 MHz)
 #define NUM_FILES        8
@@ -149,7 +151,6 @@ uint32_t mmu_mem_size = 0;
 
 // hardware control
 uint8_t hw_ctrl_lock = HW_CTRL_LOCKED;
-uint8_t enter_mini_monitor = 0;
 
 // UART3 Transmit
 void putch(char c) {
@@ -318,20 +319,51 @@ void hw_ctrl_write(uint8_t val)
         RESET();
     }
     if (val & HW_CTRL_HALT) {
-        // XXX
-        enter_mini_monitor = 1;
-        return;
-
         printf("\n\rHALT by IO port %02XH\n\r", HW_CTRL);
         while (1);
     }
 }
 
-void start_mini_monitor(void)
+void mon_enter(void)
 {
     printf("\n\rEnter mini monitor\n\r");
     dma_write_to_sram((uint32_t)mmu_bank << 16, mon, sizeof(mon));
     mcp23s08_write(MCP23S08_ctx, GPIO_NMI, 0);
+}
+
+uint16_t read_mcu_mem_w(void *addr)
+{
+    uint8_t *p = (uint8_t *)addr;
+    return ((p[1] << 8) + p[0]);
+}
+
+void mon_dump(void)
+{
+    printf("\n\r");
+    dma_read_from_sram((uint32_t)mmu_bank << 16, tmp_buf[0], sizeof(mon));
+#if 0
+    util_addrdump("monitor: ", ((uint32_t)mmu_bank << 16) + 0x80, tmp_buf[0] + 0x80,
+                  sizeof(mon) - 0x80);
+#endif
+
+    uint16_t sp = read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 2]);
+    dma_read_from_sram(((uint32_t)mmu_bank << 16) + ((sp - 2) & ~0xf), tmp_buf[0], 128);
+    uint16_t pc = read_mcu_mem_w(&tmp_buf[0][sp - ((sp - 2) & ~0xf)]);
+
+    printf("PC: %04X  ", pc);
+    printf("SP: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 2]));
+    printf("AF: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 4]));
+    printf("BC: %04X\n\r", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 6]));
+    printf("DE: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 8]));
+    printf("HL: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 10]));
+    printf("IX: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 12]));
+    printf("IY: %04X\n\r", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 14]));
+
+    printf("\n\r");
+
+    util_addrdump("  stack: ", ((uint32_t)mmu_bank << 16) + ((sp - 2) & ~0xf), tmp_buf[0], 128);
+    dma_read_from_sram(((uint32_t)mmu_bank << 16) + ((pc - 2) & ~0xf), tmp_buf[0], 128);
+    util_addrdump("program: ", ((uint32_t)mmu_bank << 16) + ((pc - 2) & ~0xf), tmp_buf[0], 128);
 }
 
 // Never called, logically
@@ -402,8 +434,10 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
     }
 
     // Z80 IO write cycle
-    int do_disk_io = 0;
+    int do_bus_master = 0;
     int led_on = 0;
+    int io_addr = ab.l;
+    int io_data = PORTC;
     switch (ab.l) {
     case UART_DREG:
         while(!U3TXIF);
@@ -413,7 +447,7 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
         if (disk_datap && (disk_datap - disk_buf) < SECTOR_SIZE) {
             *disk_datap++ = PORTC;
             if (DISK_OP_WRITE == DISK_OP_WRITE && (disk_datap - disk_buf) == SECTOR_SIZE) {
-                do_disk_io = 1;
+                do_bus_master = 1;
             }
         } else {
             #ifdef CPM_DISK_DEBUG
@@ -436,7 +470,7 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
         if (disk_op == DISK_OP_WRITE) {
             disk_datap = disk_buf;
         } else {
-            do_disk_io = 1;
+            do_bus_master = 1;
         }
         #ifdef CPM_DISK_DEBUG_VERBOSE
         printf("DISK: OP=%02x D/T/S=%d/%d/%d ADDR=%02x%02x ...\n\r", disk_op,
@@ -456,7 +490,15 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
         mmu_bank_select(PORTC);
         break;
     case HW_CTRL:
+        // XXX
+        if (io_data & HW_CTRL_HALT) {
+            do_bus_master = 1;
+        } else
+
         hw_ctrl_write(PORTC);
+        break;
+    case MON_DUMP:
+        do_bus_master = 1;
         break;
     default:
         #ifdef CPM_IO_DEBUG
@@ -464,7 +506,7 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
         #endif
         break;
     }
-    if (!do_disk_io && !enter_mini_monitor) {
+    if (!do_bus_master) {
         // Release wait (D-FF reset)
         G3POL = 1;
         G3POL = 0;
@@ -488,9 +530,12 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
     TRISD = 0x00;       // A15-A8 pin (A14:/RFSH, A15:/WAIT)
     TRISB = 0x00;       // A7-A0
 
-    if (enter_mini_monitor) {
-        enter_mini_monitor = 0;
-        start_mini_monitor();
+    switch (io_addr) {
+    case HW_CTRL:
+        mon_enter();
+        goto io_exit;
+    case MON_DUMP:
+        mon_dump();
         goto io_exit;
     }
 
