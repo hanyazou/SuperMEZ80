@@ -29,12 +29,12 @@ emuz80_z80ram.hex: $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(SRC_DIR)/ipl.inc $(SRC_D
 
 $(SRC_DIR)/ipl.inc: $(SRC_DIR)/ipl.z80
 	cd $(SRC_DIR); \
-        sjasmplus --raw=ipl.bin ipl.z80 && \
+        sjasmplus --lst=ipl.lst --raw=ipl.bin ipl.z80 && \
         cat ipl.bin | xxd -i > ipl.inc
 
 $(SRC_DIR)/mon.inc: $(SRC_DIR)/mon.z80
 	cd $(SRC_DIR); \
-        sjasmplus --raw=mon.bin mon.z80 && \
+        sjasmplus --lst=mon.lst --raw=mon.bin mon.z80 && \
         cat mon.bin | xxd -i > mon.inc
 
 $(CPM2_DIR)/boot.bin: $(CPM2_DIR)/boot.asm
@@ -63,7 +63,7 @@ upload: emuz80_z80ram.hex
         fi
 
 clean::
-	cd $(SRC_DIR); rm -f ipl.bin ipl.inc mon.bin mon.inc
+	cd $(SRC_DIR); rm -f ipl.lst ipl.bin ipl.inc mon.lst mon.bin mon.inc
 	cd $(CPM2_DIR); rm -f boot.bin bios.bin
 	cd $(SRC_DIR); rm -f *.as *.p1 *.d *.pre *.lst *.cmf *.hxl *.sdb *.obj *.sym *.rlf \
             *.elf
