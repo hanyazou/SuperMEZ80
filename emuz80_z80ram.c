@@ -318,6 +318,10 @@ void hw_ctrl_write(uint8_t val)
         RESET();
     }
     if (val & HW_CTRL_HALT) {
+        // XXX
+        enter_mini_monitor = 1;
+        return;
+
         printf("\n\rHALT by IO port %02XH\n\r", HW_CTRL);
         while (1);
     }
