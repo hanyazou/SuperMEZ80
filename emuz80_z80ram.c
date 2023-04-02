@@ -128,6 +128,11 @@ const unsigned char rom[] = {
 #include "ipl.inc"
 };
 
+const unsigned char mon[] = {
+// Mini monitor at 0x0000
+#include "mon.inc"
+};
+
 // Address Bus
 union {
 unsigned int w;                 // 16 bits Address
@@ -144,6 +149,7 @@ uint32_t mmu_mem_size = 0;
 
 // hardware control
 uint8_t hw_ctrl_lock = HW_CTRL_LOCKED;
+uint8_t enter_mini_monitor = 0;
 
 // UART3 Transmit
 void putch(char c) {
@@ -317,6 +323,13 @@ void hw_ctrl_write(uint8_t val)
     }
 }
 
+void start_mini_monitor(void)
+{
+    printf("\n\rEnter mini monitor\n\r");
+    dma_write_to_sram((uint32_t)mmu_bank << 16, mon, sizeof(mon));
+    mcp23s08_write(MCP23S08_ctx, GPIO_NMI, 0);
+}
+
 // Never called, logically
 void __interrupt(irq(default),base(8)) Default_ISR(){}
 
@@ -447,7 +460,7 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
         #endif
         break;
     }
-    if (!do_disk_io) {
+    if (!do_disk_io && !enter_mini_monitor) {
         // Release wait (D-FF reset)
         G3POL = 1;
         G3POL = 0;
@@ -467,6 +480,16 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
     G3POL = 1;          // Release wait (D-FF reset)
     G3POL = 0;
 
+    // Set address bus as output
+    TRISD = 0x00;       // A15-A8 pin (A14:/RFSH, A15:/WAIT)
+    TRISB = 0x00;       // A7-A0
+
+    if (enter_mini_monitor) {
+        enter_mini_monitor = 0;
+        start_mini_monitor();
+        goto io_exit;
+    }
+
     // turn on the LED
     led_on = 1;
     mcp23s08_write(MCP23S08_ctx, GPIO_LED, 0);
@@ -475,10 +498,6 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
         disk_stat = DISK_ST_ERROR;
         goto disk_io_done;
     }
-
-    // Set address bus as output
-    TRISD = 0x00;       // A15-A8 pin (A14:/RFSH, A15:/WAIT)
-    TRISB = 0x00;       // A7-A0
 
     uint32_t sector = disk_track * drives[disk_drive].sectors + disk_sector - 1;
     FIL *filep = drives[disk_drive].filep;
@@ -575,6 +594,7 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
     if (led_on)  // turn off the LED
         mcp23s08_write(MCP23S08_ctx, GPIO_LED, 1);
 
+ io_exit:
     // Set address bus as input
     TRISD = 0x7f;           // A15-A8 pin (A14:/RFSH, A15:/WAIT)
     TRISB = 0xff;           // A7-A0 pin
