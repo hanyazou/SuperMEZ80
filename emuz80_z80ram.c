@@ -568,7 +568,7 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
         break;
     case HW_CTRL:
         // XXX
-        if (io_data & HW_CTRL_HALT) {
+        if (hw_ctrl_lock == HW_CTRL_UNLOCKED && (io_data & (HW_CTRL_RESET|HW_CTRL_HALT))) {
             do_bus_master = 1;
         } else
 
