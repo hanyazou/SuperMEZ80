@@ -29,6 +29,8 @@
 #include <SPI.h>
 #include <mcp23s08.h>
 #include <utils.h>
+#include <disas.h>
+#include <disas_z80.h>
 
 //#define CPM_DISK_DEBUG
 //#define CPM_DISK_DEBUG_VERBOSE
@@ -399,6 +401,9 @@ void mon_dump(void)
     printf("program:\n\r");
     dma_read_from_sram(((uint32_t)mmu_bank << 16) + (pc & ~0xf), tmp_buf[0], 128);
     util_addrdump("", ((uint32_t)mmu_bank << 16) + (pc & ~0xf), tmp_buf[0], 64);
+
+    printf("\n\r");
+    disas_ops(disas_z80, ((uint32_t)mmu_bank << 16) + pc, &tmp_buf[0][pc & 0xf], 16, 16, NULL);
 }
 
 void mon_leave(void)
