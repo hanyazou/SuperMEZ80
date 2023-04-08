@@ -67,7 +67,8 @@
 #define HW_CTRL_RESET        (1 << 6)
 #define HW_CTRL_HALT         (1 << 7)
 
-#define MON_DUMP         170    // dump registers
+#define MON_ENTER        170    // enter monitor mode
+#define MON_RESTORE      171    // clean up monitor mode
 
 #define SPI_CLOCK_100KHZ 10     // Determined by actual measurement
 #define SPI_CLOCK_2MHZ   0      // Maximum speed w/o any wait (1~2 MHz)
@@ -131,7 +132,7 @@ const unsigned char rom[] = {
 };
 
 const unsigned char mon[] = {
-// Mini monitor at 0x0000
+// NMI monitor at 0x0000
 #include "mon.inc"
 };
 
@@ -143,6 +144,19 @@ unsigned int w;                 // 16 bits Address
         unsigned char h;        // Address high
     };
 } ab;
+
+// Address Bus
+struct z80_context {
+    uint16_t pc;
+    uint16_t sp;
+    uint16_t af;
+    uint16_t bc;
+    uint16_t de;
+    uint16_t hl;
+    uint16_t ix;
+    uint16_t iy;
+    uint8_t saved_prog[2];
+} z80_context;
 
 // MMU
 int mmu_bank = 0;
@@ -185,7 +199,7 @@ void release_addrbus(void)
     mcp23s08_write(MCP23S08_ctx, GPIO_A16, (mmu_bank & 1));
 }
 
-void dma_write_to_sram(uint32_t dest, uint8_t *buf, int len)
+void dma_write_to_sram(uint32_t dest, void *buf, int len)
 {
     uint16_t addr = (dest & LOW_ADDR_MASK);
     uint16_t second_half = 0;
@@ -202,7 +216,7 @@ void dma_write_to_sram(uint32_t dest, uint8_t *buf, int len)
         LATB = ab.l;
         addr++;
         LATA2 = 0;      // activate /WE
-        LATC = buf[i];
+        LATC = ((uint8_t*)buf)[i];
         LATA2 = 1;      // deactivate /WE
     }
 
@@ -214,14 +228,14 @@ void dma_write_to_sram(uint32_t dest, uint8_t *buf, int len)
         LATB = ab.l;
         addr++;
         LATA2 = 0;      // activate /WE
-        LATC = buf[i];
+        LATC = ((uint8_t*)buf)[i];
         LATA2 = 1;      // deactivate /WE
     }
 
     release_addrbus();
 }
 
-void dma_read_from_sram(uint32_t src, uint8_t *buf, int len)
+void dma_read_from_sram(uint32_t src, void *buf, int len)
 {
     uint16_t addr = (src & LOW_ADDR_MASK);
     uint16_t second_half = 0;
@@ -238,7 +252,7 @@ void dma_read_from_sram(uint32_t src, uint8_t *buf, int len)
         LATB = ab.l;
         addr++;
         LATA4 = 0;      // activate /OE
-        buf[i] = PORTC;
+        ((uint8_t*)buf)[i] = PORTC;
         LATA4 = 1;      // deactivate /OE
     }
 
@@ -250,7 +264,7 @@ void dma_read_from_sram(uint32_t src, uint8_t *buf, int len)
         LATB = ab.l;
         addr++;
         LATA4 = 0;      // activate /OE
-        buf[i] = PORTC;
+        ((uint8_t*)buf)[i] = PORTC;
         LATA4 = 1;      // deactivate /OE
     }
 
@@ -324,46 +338,104 @@ void hw_ctrl_write(uint8_t val)
     }
 }
 
-void mon_enter(void)
-{
-    printf("\n\rEnter mini monitor\n\r");
-    dma_write_to_sram((uint32_t)mmu_bank << 16, mon, sizeof(mon));
-    mcp23s08_write(MCP23S08_ctx, GPIO_NMI, 0);
-}
-
 uint16_t read_mcu_mem_w(void *addr)
 {
     uint8_t *p = (uint8_t *)addr;
     return ((p[1] << 8) + p[0]);
 }
 
+void write_mcu_mem_w(void *addr, uint16_t val)
+{
+    uint8_t *p = (uint8_t *)addr;
+    *p++ = ((val >> 0) & 0xff);
+    *p++ = ((val >> 8) & 0xff);
+}
+
+void mon_setup(void)
+{
+    dma_read_from_sram(((uint32_t)mmu_bank << 16), tmp_buf[1], sizeof(mon));
+    dma_write_to_sram((uint32_t)mmu_bank << 16, mon, sizeof(mon));
+    mcp23s08_write(MCP23S08_ctx, GPIO_NMI, 0);
+}
+
+void mon_enter(void)
+{
+    // printf("Enter monitor\n\r");
+
+    dma_read_from_sram((uint32_t)mmu_bank << 16, tmp_buf[0], sizeof(mon));
+    z80_context.sp = read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 2]);
+    z80_context.af = read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 4]);
+    z80_context.bc = read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 6]);
+    z80_context.de = read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 8]);
+    z80_context.hl = read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 10]);
+    z80_context.ix = read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 12]);
+    z80_context.iy = read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 14]);
+
+    uint16_t sp = z80_context.sp;
+    dma_read_from_sram(((uint32_t)mmu_bank << 16) + (sp & ~0xf), tmp_buf[0], 128);
+    z80_context.pc = read_mcu_mem_w(&tmp_buf[0][sp & 0xf]);
+}
+
 void mon_dump(void)
 {
-    printf("\n\r");
-    dma_read_from_sram((uint32_t)mmu_bank << 16, tmp_buf[0], sizeof(mon));
-#if 0
-    util_addrdump("monitor: ", ((uint32_t)mmu_bank << 16) + 0x80, tmp_buf[0] + 0x80,
-                  sizeof(mon) - 0x80);
-#endif
+    uint16_t sp = z80_context.sp;
+    uint16_t pc = z80_context.pc;
 
-    uint16_t sp = read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 2]);
-    dma_read_from_sram(((uint32_t)mmu_bank << 16) + ((sp - 2) & ~0xf), tmp_buf[0], 128);
-    uint16_t pc = read_mcu_mem_w(&tmp_buf[0][sp - ((sp - 2) & ~0xf)]);
-
-    printf("PC: %04X  ", pc);
-    printf("SP: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 2]));
-    printf("AF: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 4]));
-    printf("BC: %04X\n\r", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 6]));
-    printf("DE: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 8]));
-    printf("HL: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 10]));
-    printf("IX: %04X  ", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 12]));
-    printf("IY: %04X\n\r", read_mcu_mem_w(&tmp_buf[0][sizeof(mon) - 14]));
+    printf("PC: %04X  ", z80_context.pc);
+    printf("SP: %04X  ", z80_context.sp);
+    printf("AF: %04X  ", z80_context.af);
+    printf("BC: %04X\n\r", z80_context.bc);
+    printf("DE: %04X  ", z80_context.de);
+    printf("HL: %04X  ", z80_context.hl);
+    printf("IX: %04X  ", z80_context.ix);
+    printf("IY: %04X\n\r", z80_context.iy);
 
     printf("\n\r");
+    printf("stack:\n\r");
+    dma_read_from_sram(((uint32_t)mmu_bank << 16) + (sp & ~0xf), tmp_buf[0], 128);
+    util_addrdump("", ((uint32_t)mmu_bank << 16) + (sp & ~0xf), tmp_buf[0], 64);
 
-    util_addrdump("  stack: ", ((uint32_t)mmu_bank << 16) + ((sp - 2) & ~0xf), tmp_buf[0], 128);
-    dma_read_from_sram(((uint32_t)mmu_bank << 16) + ((pc - 2) & ~0xf), tmp_buf[0], 128);
-    util_addrdump("program: ", ((uint32_t)mmu_bank << 16) + ((pc - 2) & ~0xf), tmp_buf[0], 128);
+    printf("\n\r");
+    printf("program:\n\r");
+    dma_read_from_sram(((uint32_t)mmu_bank << 16) + (pc & ~0xf), tmp_buf[0], 128);
+    util_addrdump("", ((uint32_t)mmu_bank << 16) + (pc & ~0xf), tmp_buf[0], 64);
+}
+
+void mon_leave(void)
+{
+    // printf("Leave monitor\n\r");
+
+    uint16_t pc = z80_context.pc;
+    uint16_t sp = z80_context.sp;
+    const unsigned int size = sizeof(z80_context.saved_prog);
+
+    // Rewind PC on the NMI stack by 2 byes
+    pc -= size;
+    write_mcu_mem_w(tmp_buf[0], pc);
+    dma_write_to_sram(((uint32_t)mmu_bank << 16) + sp, tmp_buf[0], 2);
+
+    // Save original program
+    dma_read_from_sram(((uint32_t)mmu_bank << 16) + pc, &z80_context.saved_prog, size);
+
+    // Insert 'OUT (MON_RESTORE), A'
+    memset(tmp_buf[0], 0, size);  // Fill with NOP
+    tmp_buf[0][0] = 0xd3;
+    tmp_buf[0][1] = MON_RESTORE;
+    dma_write_to_sram(((uint32_t)mmu_bank << 16) + pc, tmp_buf[0], size);
+
+    // Clear NMI
+    mcp23s08_write(MCP23S08_ctx, GPIO_NMI, 1);
+}
+
+void mon_restore(void)
+{
+    // printf("\n\rCleanup monitor\n\r");
+
+    // Restore original program
+    const unsigned int size = sizeof(z80_context.saved_prog);
+    uint16_t pc = z80_context.pc - size;
+    dma_write_to_sram(((uint32_t)mmu_bank << 16) + pc, &z80_context.saved_prog, size);
+    dma_write_to_sram(((uint32_t)mmu_bank << 16), tmp_buf[1], sizeof(mon));
 }
 
 // Never called, logically
@@ -497,7 +569,8 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
 
         hw_ctrl_write(PORTC);
         break;
-    case MON_DUMP:
+    case MON_ENTER:
+    case MON_RESTORE:
         do_bus_master = 1;
         break;
     default:
@@ -532,10 +605,15 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
 
     switch (io_addr) {
     case HW_CTRL:
-        mon_enter();
+        mon_setup();
         goto io_exit;
-    case MON_DUMP:
+    case MON_ENTER:
+        mon_enter();
         mon_dump();
+        mon_leave();
+        goto io_exit;
+    case MON_RESTORE:
+        mon_restore();
         goto io_exit;
     }
 

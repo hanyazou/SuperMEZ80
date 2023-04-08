@@ -1,5 +1,5 @@
 ;
-;	SuperMEZ80+SPI mini monitor
+;	SuperMEZ80+SPI NMI monitor
 ;
 ;	Copyright (C) 2023 by Hanyzou
 ;
@@ -30,7 +30,7 @@
 ;
 CONDAT	EQU	1		; console output port
 ;
-	DEFS	66H, 0		; NOP
+	DEFS	66H, 66H-$	; NOP
 	ORG	0066H		; NMI interrupt vector
 ENTRY:
 	LD	(SAVED_REG_SP),SP
@@ -42,23 +42,17 @@ ENTRY:
 	push	IX
 	push	IY
 
-	LD	HL,STARTMSG
-PRTMSG0:
-	LD	A,(HL)
-	OUT	(CONDAT),A
-	INC	HL
-	OR	A
-	JP	NZ,PRTMSG0
 	OUT	(170),A
-	HALT
+
+	pop	IY
+	pop	IX
+	pop	HL
+	pop	DE
+	pop	BC
+	pop	AF
+	LD	SP,(SAVED_REG_SP)
+	RETN
 ;
-STARTMSG:
-	DEFB	13,10
-	DEFM	'MON: Hello, monitor world!'
-	DEFB	13,10,0
-STACK:
-	DEFS	32
-SAVED_REG:
 SAVED_REG_IY:
 	DEFW	0
 SAVED_REG_IX:
