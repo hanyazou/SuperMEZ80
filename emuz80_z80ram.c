@@ -80,7 +80,7 @@
 
 #define MEM_CHECK_UNIT   TMP_BUF_SIZE * 16 // 2 KB
 #define MAX_MEM_SIZE     0x00100000        // 1 MB
-#define HIGH_ADDR_MASK   0x0001c000
+#define HIGH_ADDR_MASK   0xffffc000
 #define LOW_ADDR_MASK    0x00003fff
 
 #define GPIO_CS0    0
@@ -91,6 +91,8 @@
 #define GPIO_A14    5
 #define GPIO_A15    6
 #define GPIO_A16    7
+#define GPIO_A17    1
+//#define GPIO_A18    3
 
 // Z80 ROM equivalent, see end of this file
 extern const unsigned char rom[];
@@ -190,6 +192,8 @@ void acquire_addrbus(uint32_t addr)
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_A15, MCP23S08_PINMODE_OUTPUT);
     mcp23s08_write(MCP23S08_ctx, GPIO_A16, ((addr >> 16) & 1));
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_A16, MCP23S08_PINMODE_OUTPUT);
+    mcp23s08_write(MCP23S08_ctx, GPIO_A17, ((addr >> 17) & 1));
+    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A17, MCP23S08_PINMODE_OUTPUT);
 }
 
 void release_addrbus(void)
@@ -198,7 +202,8 @@ void release_addrbus(void)
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_A15, MCP23S08_PINMODE_INPUT);
 
     // A16 must always be driven by MCP23S08
-    mcp23s08_write(MCP23S08_ctx, GPIO_A16, (mmu_bank & 1));
+    mcp23s08_write(MCP23S08_ctx, GPIO_A16, ((mmu_bank >> 0) & 1));
+    mcp23s08_write(MCP23S08_ctx, GPIO_A17, ((mmu_bank >> 1) & 1));
 }
 
 void dma_write_to_sram(uint32_t dest, void *buf, int len)
