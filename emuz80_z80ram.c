@@ -29,6 +29,7 @@
 #include <SDCard.h>
 #include <SPI.h>
 #include <mcp23s08.h>
+#include <ch376.h>
 #include <utils.h>
 #include <disas.h>
 #include <disas_z80.h>
@@ -1153,6 +1154,13 @@ void main(void) {
     printf("                       \r");
 
     printf("\n\r");
+
+    //
+    // Say Hello to CH376 USB mass storage contoroller
+    //
+    ch376_init(CH376_ctx, SPI0_ctx, SPI_CLOCK_100KHZ);
+    printf("ch376_init(): done\n\r");
+    while (1);
 
     //
     // Say Hello to SPI I/O expander MCP23S08

@@ -13,6 +13,7 @@ PP3_OPTS := -c $(PORT) -s 1700 -v 2 -r 30 -t $(PIC)
 FATFS_SRCS := $(FATFS_DIR)/source/ff.c
 DISK_SRCS := $(DISKIO_DIR)/SDCard.c $(DISKIO_DIR)/SPI0.c $(DISKIO_DIR)/SPI1.c \
     $(DISKIO_DIR)/mcp23s08.c \
+    $(DISKIO_DIR)/ch376.c \
     $(DISKIO_DIR)/diskio.c $(DISKIO_DIR)/utils.c
 SRCS := $(SRC_DIR)/emuz80_z80ram.c $(SRC_DIR)/disas.c
 
@@ -20,6 +21,7 @@ INCS :=-I$(SRC_DIR) -I$(DISKIO_DIR) -I$(FATFS_DIR)/source
 
 HDRS := picconfig.h \
         $(DISKIO_DIR)/SPI.c $(DISKIO_DIR)/SPI.h $(DISKIO_DIR)/SDCard.h $(DISKIO_DIR)/mcp23s08.h \
+        $(DISKIO_DIR)/ch376.h \
         $(SRC_DIR)/disas.h $(SRC_DIR)/disas_z80.h $(SRC_DIR)/ipl.inc $(SRC_DIR)/nmimon.inc
 
 all: emuz80_z80ram.hex $(CPM2_DIR)/drivea.dsk
