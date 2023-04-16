@@ -25,14 +25,22 @@
 #include <stdio.h>
 #include "SPI.h"
 #include "ch376.h"
+#include "utils.h"
 
 #include <picconfig.h>
 
 #define CH376_DEBUG
+// #define CH376_DEBUG_VERBOSE
+
 #if defined(CH376_DEBUG)
 #define dprintf(args) do { printf args; } while(0)
 #else
 #define dprintf(args) do { } while(0)
+#endif
+#if defined(CH376_DEBUG_VERBOSE)
+#define dvprintf(args) do { printf args; } while(0)
+#else
+#define dvprintf(args) do { } while(0)
 #endif
 
 #define SPI_PREFIX SPI0
@@ -137,9 +145,42 @@ uint8_t ch376_wait_interrupt(struct CH376 *ctx)
 
     cmd[0] = CMD_GET_STATUS;
     ch376_command_result(ctx, cmd, 1, &status, 1, 0);
-    dprintf(("ch376: interrupt status = %02XH\n\r", status));
+    dvprintf(("ch376: interrupt status = %02XH\n\r", status));
 
     return status;
+}
+
+int ch376_read_usb_data0(struct CH376 *ctx, int offs, void *buf, int count)
+{
+    struct SPI *spi = ctx->spi;
+    uint8_t cmd[1];
+    int i;
+    uint8_t n;
+
+    cmd[0] = CMD_RD_USB_DATA0;
+    SPI(begin_transaction)(spi);
+    SPI(send)(spi, cmd, 1);
+    n = SPI(receive_byte)(spi);
+    dvprintf(("ch376: CMD_RD_USB_DATA0: read %d / %d btyes\n\r", UTIL_MIN(n, offs + count), n));
+    i = UTIL_MIN(offs, n);
+    if (0 < i) {
+        SPI(dummy_receive)(spi, i);
+    }
+    if (i < n) {
+        int tmp = UTIL_MIN(n - i, count);
+        if (tmp != 0) {
+            dvprintf(("ch376: CMD_RD_USB_DATA0: xfer %d btyes to 0x%lx\n\r", tmp,
+                     (unsigned long)buf));
+            SPI(receive)(spi, buf, tmp);
+        }
+        i += tmp;
+    }
+    if (i < n) {
+        SPI(dummy_receive)(spi, n - i);
+    }
+    SPI(end_transaction)(spi);
+
+    return n;
 }
 
 void ch376_set_sdo_int(struct CH376 *ctx, int enable)
@@ -157,6 +198,68 @@ void ch376_set_sdo_int(struct CH376 *ctx, int enable)
     ch376_command(ctx, cmd, 3);
 }
 
+int ch376_read512(struct CH376 *ctx, uint32_t addr, int offs, void *buf, int count)
+{
+    uint8_t cmd[6];
+    uint8_t status;
+    int n;
+
+    dvprintf(("ch376: CMD_DISK_READ addr=%ld, offs=%d, count=%d to buf=0x%lx...\n\r", addr, offs,
+              count, (unsigned long)buf));
+    cmd[0] = CMD_DISK_READ;
+    cmd[1] = (addr >>  0) & 0xff;
+    cmd[2] = (addr >>  8) & 0xff;
+    cmd[3] = (addr >> 16) & 0xff;
+    cmd[4] = (addr >> 24) & 0xff;
+    cmd[5] = 1;  // number of sectors
+    ch376_command(ctx, cmd, 6);
+
+    while (1) {
+        status = ch376_wait_interrupt(ctx);
+        if (status == USB_INT_DISK_READ) {
+            n = ch376_read_usb_data0(ctx, offs, buf, count);
+            dvprintf(("ch376: ch376_usb_read_data0(offs=%d, count=%d) = %d\n\r", offs, count, n));
+            if (n < offs) {
+                offs -= n;
+                n = 0;
+            } else
+            if (0 < offs) {
+                n -= offs;
+                offs = 0;
+            }
+            buf += n;
+            count = UTIL_MAX(count - n, 0);
+
+            cmd[0] = CMD_DISK_RD_GO;
+            ch376_command(ctx, cmd, 1);
+            continue;
+        }
+        if (status == USB_INT_SUCCESS) {
+            dprintf(("ch376: read512(): done: addr=%ld, offs=%d, %d bytes remain\n\r", addr, offs,
+                     count));
+            return count == 0 ? CH376_SUCCESS : CH376_ERROR;
+        }
+    }
+
+    dprintf(("ch376: read512(): ERROR: addr=%ld, offs=%d, %d bytes remain, status is %02XH\n\r",
+             addr, offs, count, status));
+
+    return CH376_ERROR;
+}
+
+int ch376_check_exist(struct CH376 *ctx, uint8_t challenge)
+{
+    uint8_t buf[2];
+    uint8_t result;
+
+    buf[0] = CMD_CHECK_EXIST;
+    buf[1] = challenge;
+    ch376_command_result(ctx, buf, 2, &result, 1, 0);
+    dprintf(("ch376: check_exist(): result %02XH, %s\n\r", result,
+             (result == (~buf[1]&0xff)) ? "ok" : "NG"));
+    return (result == (~buf[1]&0xff)) ? CH376_SUCCESS : CH376_ERROR;
+}
+
 int ch376_init(struct CH376 *ctx, struct SPI *spi, uint16_t clock_delay, uint16_t timeout)
 {
     ctx->spi = spi;
@@ -169,65 +272,67 @@ int ch376_init(struct CH376 *ctx, struct SPI *spi, uint16_t clock_delay, uint16_
     uint8_t result;
     uint8_t status;
 
-    dprintf(("\n\rch376: initialize ...\n\r"));
+    dvprintf(("\n\rch376: initialize ...\n\r"));
 
     SPI(begin)(spi);
     SPI(configure)(spi, clock_delay, SPI_MSBFIRST, SPI_MODE0);
+
+    dprintf(("ch376: reset ...\n\r", result));
+    buf[0] = CMD_RESET_ALL;
+    ch376_command(ctx, buf, 1);
+    __delay_ms(100);
+
+    ch376_check_exist(ctx, 0x57);
+    ch376_check_exist(ctx, 0xa5);
+    ch376_check_exist(ctx, 0xF0);
 
     buf[0] = CMD_GET_IC_VER;
     ch376_command_result(ctx, buf, 1, &result, 1, 0);
     dprintf(("ch376: version %02XH\n\r", result));
 
     // USB host mode
-    dprintf(("ch376: send CMD_SET_USB_MODE host ... \n\r"));
     buf[0] = CMD_SET_USB_MODE;
+    buf[1] = 0x07;
+    ch376_command_result(ctx, buf, 2, &result, 1, 10 /* delay u secs */);
+    dprintf(("ch376: CMD_SET_USB_MODE %02XH, status = %02XH\n\r", buf[1], result));
+    __delay_ms(300);
     buf[1] = 0x06;
     ch376_command_result(ctx, buf, 2, &result, 1, 10 /* delay u secs */);
-    dprintf(("ch376: send CMD_SET_USB_MODE host, status = %02XH\n\r", result));
+    dprintf(("ch376: CMD_SET_USB_MODE %02XH, status = %02XH\n\r", buf[1], result));
 
     ch376_set_sdo_int(ctx, 1);
 
- do_connect:
     status = 0xff;
     while (status != USB_INT_SUCCESS) {
-        dprintf(("ch376: send CMD_DISK_CONNECT ... \n\r"));
         buf[0] = CMD_DISK_CONNECT;
         ch376_command(ctx, buf, 1);
         status = ch376_wait_interrupt(ctx);
+        dprintf(("ch376: CMD_DISK_CONNECT ... status = %02XH\n\r", status));
         ch376_polling_delay(ctx);
     }
 
-    dprintf(("ch376: CMD_DISK_MOUNT ...\n\r"));
+    dvprintf(("ch376: CMD_DISK_MOUNT ...\n\r"));
     buf[0] = CMD_DISK_MOUNT;
     ch376_command(ctx, buf, 1);
     status = ch376_wait_interrupt(ctx);
-    if (status == USB_INT_DISCONNECT)
-        goto do_connect;
-    if (status == USB_INT_DISK_ERR) {
-        dprintf(("ch376: storage drive error %02XH\n\r", status));
-        goto do_connect;
-    }
+    dprintf(("ch376: CMD_DISK_MOUNT ... status = %02XH\n\r", status));
 
-    dprintf(("ch376: CMD_DISK_CAPACITY ...\n\r"));
+    dvprintf(("ch376: CMD_DISK_CAPACITY ...\n\r"));
     buf[0] = CMD_DISK_CAPACITY;
     ch376_command(ctx, buf, 1);
     status = ch376_wait_interrupt(ctx);
-    if (status == USB_INT_SUCCESS) {
-        dprintf(("ch376: CMD_RD_USB_DATA0: "));
-        buf[0] = CMD_RD_USB_DATA0;
-        SPI(begin_transaction)(spi);
-        SPI(send)(spi, buf, 1);
-        SPI(receive)(spi, buf, 5);
-        SPI(end_transaction)(spi);
-
-        uint32_t capacity = 0;
-        for (int i = 0; i < 4; i++) {
-            capacity |= ((uint32_t)buf[i + 1]) << (8 * i);
-        }
-        dprintf(("%08lX %ld KB\n\r", capacity, capacity / 2));
+    if (status != USB_INT_SUCCESS) {
+        dprintf(("ch376: ERROR: CMD_DISK_CAPACITY status = %02XH\n\r", status));
+        return CH376_ERROR;
     }
+    ch376_read_usb_data0(ctx, 0, &buf[1], 4);
+    uint32_t capacity = 0;
+    for (int i = 0; i < 4; i++) {
+        capacity |= ((uint32_t)buf[i + 1]) << (8 * i);
+    }
+    dprintf(("ch376: CMD_DISK_CAPACITY ... %08lX %ld KB\n\r", capacity, capacity / 2));
 
-    dprintf(("ch376: initialize ...done\n\r"));
+    dvprintf(("ch376: initialize ...done\n\r"));
 
-    return 0;
+    return CH376_SUCCESS;
 }

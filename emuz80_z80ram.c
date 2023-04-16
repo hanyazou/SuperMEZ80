@@ -1159,7 +1159,12 @@ void main(void) {
     // Say Hello to CH376 USB mass storage contoroller
     //
     ch376_init(CH376_ctx, SPI0_ctx, SPI_CLOCK_100KHZ, 10 /* timeout secs */);
-    printf("ch376_init(): done\n\r");
+    ch376_read512(CH376_ctx, 0x000, 0x000, tmp_buf[0], TMP_BUF_SIZE);
+    util_hexdump("00000000: ", tmp_buf[0], TMP_BUF_SIZE);
+    ch376_read512(CH376_ctx, 0x000, 0x100, tmp_buf[0], TMP_BUF_SIZE);
+    util_hexdump("00000100: ", tmp_buf[0], TMP_BUF_SIZE);
+    ch376_read512(CH376_ctx, 0x800, 0x000, tmp_buf[0], TMP_BUF_SIZE);
+    util_hexdump("00100000: ", tmp_buf[0], TMP_BUF_SIZE);
     while (1);
 
     //

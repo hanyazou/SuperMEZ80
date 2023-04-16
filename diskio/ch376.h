@@ -31,5 +31,7 @@ extern struct CH376 *CH376_ctx;
 #define CH376_ERROR            1
 
 int ch376_init(struct CH376 *ctx, struct SPI *spi, uint16_t clock_delay, uint16_t timeout);
+int ch376_read512(struct CH376 *ctx, uint32_t addr, int offs, void *buf, int count);
+
 
 #endif  // __CH376_H__
