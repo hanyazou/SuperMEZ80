@@ -71,6 +71,9 @@ void SPI0_end_transaction(struct SPI *ctx_);
 void SPI0_dummy_clocks(struct SPI *ctx_, int clocks);
 uint8_t SPI0_receive_byte(struct SPI *ctx_);
 void SPI0_select(struct SPI *ctx_, int select);
+static inline void SPI0_dummy_receive(struct SPI *ctx_, int bytes) {
+    SPI0_dummy_clocks(ctx_, bytes);
+}
 extern struct SPI *SPI0_ctx;
 
 void SPI1_begin(struct SPI *ctx_);
@@ -84,6 +87,9 @@ void SPI1_end_transaction(struct SPI *ctx_);
 void SPI1_dummy_clocks(struct SPI *ctx_, int clocks);
 uint8_t SPI1_receive_byte(struct SPI *ctx_);
 void SPI1_select(struct SPI *ctx_, int select);
+static inline void SPI1_dummy_receive(struct SPI *ctx_, int bytes) {
+    SPI1_dummy_clocks(ctx_, bytes);
+}
 extern struct SPI *SPI1_ctx;
 
 static inline void SPI_begin(void) {
