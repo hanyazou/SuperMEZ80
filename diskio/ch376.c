@@ -95,30 +95,78 @@
 static struct CH376 {
     struct SPI *spi;
     uint8_t clock_delay;
+    uint16_t timeout;
+    uint32_t polling_interval_ms;
 } ctx_ = { 0 };
 struct CH376 *CH376_ctx = &ctx_;
 
-void ch376_set_sdo_int(struct CH376 *ctx, int enable)
+void ch376_command_result(struct CH376 *ctx, void *cmd, int cmd_len, void *res, int res_len,
+                          int udelay)
 {
     struct SPI *spi = ctx->spi;
+    SPI(begin_transaction)(spi);
+    SPI(send)(spi, cmd, cmd_len);
+    if (udelay) {
+        // Fix me, inline delay argument must be constant
+        __delay_us(10);
+    }
+    SPI(receive)(spi, res, res_len);
+    SPI(end_transaction)(spi);
+}
+
+void ch376_command(struct CH376 *ctx, void *cmd, int cmd_len)
+{
+    ch376_command_result(ctx, cmd, cmd_len, NULL, 0, 0);
+}
+
+void ch376_polling_delay(struct CH376 *ctx)
+{
+    for (int i = 0; i < ctx->polling_interval_ms; i++)
+        __delay_ms(1);
+}
+
+uint8_t ch376_wait_interrupt(struct CH376 *ctx)
+{
+    int i;
+    uint8_t cmd[3];
+    uint8_t status;
+
+    for (i = 0; i < ctx->timeout && (PORTC & (1 << 2)); i++) {
+        ch376_polling_delay(ctx);
+    }
+
+    cmd[0] = CMD_GET_STATUS;
+    ch376_command_result(ctx, cmd, 1, &status, 1, 0);
+    dprintf(("ch376: interrupt status = %02XH\n\r", status));
+
+    return status;
+}
+
+void ch376_set_sdo_int(struct CH376 *ctx, int enable)
+{
+    uint8_t cmd[3];
 
     // set SDO pin is always in the output state. When the SCS chip selection is invalid,
     // it serves as the interrupt request output, which is equivalent to the INT# pin for
     // MCU to query the interrupt request status.
-    TRISC2 = 1;  // set D2 as input
-    uint8_t buf[3];
-    buf[0] = CMD_SET_SDO_INT;
-    buf[1] = CMD_SET_SDO_INT_MAGIC;
-    buf[2] = enable ? CMD_SET_SDO_INT_ENABLE : CMD_SET_SDO_INT_DISABLE;
-    SPI(begin_transaction)(spi);
-    SPI(send)(spi, buf, 3);
-    SPI(end_transaction)(spi);
+    if (enable)
+        TRISC2 = 1;  // set D2 as input
+    cmd[0] = CMD_SET_SDO_INT;
+    cmd[1] = CMD_SET_SDO_INT_MAGIC;
+    cmd[2] = enable ? CMD_SET_SDO_INT_ENABLE : CMD_SET_SDO_INT_DISABLE;
+    ch376_command(ctx, cmd, 3);
 }
 
-int ch376_init(struct CH376 *ctx, struct SPI *spi, uint16_t clock_delay)
+int ch376_init(struct CH376 *ctx, struct SPI *spi, uint16_t clock_delay, uint16_t timeout)
 {
     ctx->spi = spi;
     ctx->clock_delay = clock_delay;
+    ctx->polling_interval_ms = 100;
+    ctx->timeout = timeout * 10;  // timeout is represented in polling interval (ms) x N
+
+    int i;
+    uint8_t buf[3];
+    uint8_t result;
     uint8_t status;
 
     dprintf(("\n\rch376: initialize ...\n\r"));
@@ -126,25 +174,16 @@ int ch376_init(struct CH376 *ctx, struct SPI *spi, uint16_t clock_delay)
     SPI(begin)(spi);
     SPI(configure)(spi, clock_delay, SPI_MSBFIRST, SPI_MODE0);
 
-    uint8_t buf[2];
     buf[0] = CMD_GET_IC_VER;
-    SPI(begin_transaction)(spi);
-    SPI(send)(spi, buf, 1);
-    buf[1] = SPI(receive_byte)(spi);
-    SPI(end_transaction)(spi);
-
-    dprintf(("ch376: version %02XH\n\r", buf[1]));
+    ch376_command_result(ctx, buf, 1, &result, 1, 0);
+    dprintf(("ch376: version %02XH\n\r", result));
 
     // USB host mode
     dprintf(("ch376: send CMD_SET_USB_MODE host ... \n\r"));
     buf[0] = CMD_SET_USB_MODE;
     buf[1] = 0x06;
-    SPI(begin_transaction)(spi);
-    SPI(send)(spi, buf, 2);
-    __delay_us(10);
-    status = SPI(receive_byte)(spi);
-    SPI(end_transaction)(spi);
-    dprintf(("ch376: send CMD_SET_USB_MODE host, status = %02XH\n\r", status));
+    ch376_command_result(ctx, buf, 2, &result, 1, 10 /* delay u secs */);
+    dprintf(("ch376: send CMD_SET_USB_MODE host, status = %02XH\n\r", result));
 
     ch376_set_sdo_int(ctx, 1);
 
@@ -152,97 +191,41 @@ int ch376_init(struct CH376 *ctx, struct SPI *spi, uint16_t clock_delay)
     status = 0xff;
     while (status != USB_INT_SUCCESS) {
         dprintf(("ch376: send CMD_DISK_CONNECT ... \n\r"));
-        uint8_t buf[2];
         buf[0] = CMD_DISK_CONNECT;
-        SPI(begin_transaction)(spi);
-        SPI(send)(spi, buf, 1);
-        SPI(end_transaction)(spi);
-
-        for (int i = 0; i < 100 && (PORTC & (1 << 2)); i++) {
-            __delay_ms(50);
-        }
-
-        buf[0] = CMD_GET_STATUS;
-        SPI(begin_transaction)(spi);
-        SPI(send)(spi, buf, 1);
-        buf[1] = SPI(receive_byte)(spi);
-        SPI(end_transaction)(spi);
-        // if (status != buf[1])
-        {
-            dprintf(("ch376: status = %02XH\n\r", buf[1]));
-            status = buf[1];
-        }
-        __delay_ms(500);
+        ch376_command(ctx, buf, 1);
+        status = ch376_wait_interrupt(ctx);
+        ch376_polling_delay(ctx);
     }
 
-#if 1
-    status = 0xff;
-    while (status != USB_INT_SUCCESS) {
-        dprintf(("ch376: CMD_DISK_MOUNT ...\n\r"));
-        uint8_t buf[2];
-        buf[0] = CMD_DISK_MOUNT;
-        SPI(begin_transaction)(spi);
-        SPI(send)(spi, buf, 1);
-        SPI(end_transaction)(spi);
-
-        for (int i = 0; i < 100 && (PORTC & (1 << 2)); i++) {
-            __delay_ms(50);
-        }
-
-        buf[0] = CMD_GET_STATUS;
-        SPI(begin_transaction)(spi);
-        SPI(send)(spi, buf, 1);
-        buf[1] = SPI(receive_byte)(spi);
-        SPI(end_transaction)(spi);
-        // if (status != buf[1])
-        {
-            dprintf(("ch376: status = %02XH\n\r", buf[1]));
-            status = buf[1];
-        }
-        if (status == USB_INT_DISCONNECT)
-            goto do_connect;
-    }
-#endif
-
-    status = 0xff;
-    while (status != USB_INT_SUCCESS) {
-        dprintf(("ch376: CMD_DISK_CAPACITY ...\n\r"));
-        uint8_t buf[2];
-        buf[0] = CMD_DISK_CAPACITY;
-        SPI(begin_transaction)(spi);
-        SPI(send)(spi, buf, 1);
-        SPI(end_transaction)(spi);
-
-        for (int i = 0; i < 100 && (PORTC & (1 << 2)); i++) {
-            __delay_ms(50);
-        }
-
-        buf[0] = CMD_GET_STATUS;
-        SPI(begin_transaction)(spi);
-        SPI(send)(spi, buf, 1);
-        buf[1] = SPI(receive_byte)(spi);
-        SPI(end_transaction)(spi);
-        // if (status != buf[1])
-        {
-            dprintf(("ch376: status = %02XH\n\r", buf[1]));
-            status = buf[1];
-        }
-        if (status == USB_INT_DISCONNECT)
-            goto do_connect;
+    dprintf(("ch376: CMD_DISK_MOUNT ...\n\r"));
+    buf[0] = CMD_DISK_MOUNT;
+    ch376_command(ctx, buf, 1);
+    status = ch376_wait_interrupt(ctx);
+    if (status == USB_INT_DISCONNECT)
+        goto do_connect;
+    if (status == USB_INT_DISK_ERR) {
+        dprintf(("ch376: storage drive error %02XH\n\r", status));
+        goto do_connect;
     }
 
-    dprintf(("ch376: CMD_RD_USB_DATA0: "));
-    buf[0] = CMD_RD_USB_DATA0;
-    SPI(begin_transaction)(spi);
-    SPI(send)(spi, buf, 1);
-    buf[1] = SPI(receive_byte)(spi);
-    uint32_t capacity = 0;
-    for (int i = 0; i < buf[1]; i++) {
-        capacity |= (((uint32_t)SPI(receive_byte)(spi)) << (8 * i));
-    }
-    dprintf(("%08lX %ld KB\n\r", capacity, capacity / 2));
+    dprintf(("ch376: CMD_DISK_CAPACITY ...\n\r"));
+    buf[0] = CMD_DISK_CAPACITY;
+    ch376_command(ctx, buf, 1);
+    status = ch376_wait_interrupt(ctx);
+    if (status == USB_INT_SUCCESS) {
+        dprintf(("ch376: CMD_RD_USB_DATA0: "));
+        buf[0] = CMD_RD_USB_DATA0;
+        SPI(begin_transaction)(spi);
+        SPI(send)(spi, buf, 1);
+        SPI(receive)(spi, buf, 5);
+        SPI(end_transaction)(spi);
 
-    SPI(end_transaction)(spi);
+        uint32_t capacity = 0;
+        for (int i = 0; i < 4; i++) {
+            capacity |= ((uint32_t)buf[i + 1]) << (8 * i);
+        }
+        dprintf(("%08lX %ld KB\n\r", capacity, capacity / 2));
+    }
 
     dprintf(("ch376: initialize ...done\n\r"));
 

@@ -1158,7 +1158,7 @@ void main(void) {
     //
     // Say Hello to CH376 USB mass storage contoroller
     //
-    ch376_init(CH376_ctx, SPI0_ctx, SPI_CLOCK_100KHZ);
+    ch376_init(CH376_ctx, SPI0_ctx, SPI_CLOCK_100KHZ, 10 /* timeout secs */);
     printf("ch376_init(): done\n\r");
     while (1);
 
