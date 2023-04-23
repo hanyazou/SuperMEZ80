@@ -922,8 +922,8 @@ void __interrupt(irq(CLC3),base(8)) CLC_ISR() {
     G3POL = 1;          // Release wait (D-FF reset)
     G3POL = 0;
 
-    // Set address bus as output
-    TRISD = 0x00;       // A15-A8 pin (A14:/RFSH, A15:/WAIT)
+    // Set address bus as output (except /RFSH)
+    TRISD = 0x40;       // A15-A8 pin (A14:/RFSH, A15:/WAIT)
     TRISB = 0x00;       // A7-A0
 
     if (invoke_monitor) {
@@ -1086,7 +1086,7 @@ void main(void) {
     // Address bus A15-A8 pin (A14:/RFSH, A15:/WAIT)
     ANSELD = 0x00;      // Disable analog function
     LATD = 0x00;
-    TRISD = 0x00;       // Set as output
+    TRISD = 0x40;       // Set as output except /RFSH
 
     // SPI /CS (RE2) output pin
     ANSELE2 = 0;        // Disable analog function
