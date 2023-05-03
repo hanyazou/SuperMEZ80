@@ -130,6 +130,8 @@ extern uint32_t mmu_num_banks;
 extern uint32_t mmu_mem_size;
 
 extern void mem_init(void);
+extern uint32_t phys_addr(uint32_t addr);
+extern uint32_t bank_phys_addr(int bank, uint32_t addr);
 extern void set_bank_pins(uint32_t addr);
 extern void dma_acquire_addrbus(uint32_t addr);
 extern void dma_release_addrbus(void);

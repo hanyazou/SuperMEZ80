@@ -105,6 +105,16 @@ void mem_init()
 #endif  // !CPM_MMU_EXERCISE
 }
 
+uint32_t phys_addr(uint32_t addr)
+{
+    return ((uint32_t)mmu_bank << 16) + addr;
+}
+
+uint32_t bank_phys_addr(int bank, uint32_t addr)
+{
+    return ((uint32_t)bank << 16) + addr;
+}
+
 void set_bank_pins(uint32_t addr)
 {
     uint32_t mask = 0;
