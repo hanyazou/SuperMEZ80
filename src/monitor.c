@@ -146,6 +146,17 @@ static void install_rst_hook(int bank)
     rst_hook_installed = bank;
 }
 
+static void bank_select_callback(int from, int to)
+{
+    install_nmi_hook(to);
+    install_rst_hook(to);
+}
+
+void mon_init(void)
+{
+    mmu_bank_select_callback = bank_select_callback;
+}
+
 void mon_setup(void)
 {
     install_nmi_hook(mmu_bank);
