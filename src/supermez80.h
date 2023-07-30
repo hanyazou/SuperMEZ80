@@ -82,10 +82,8 @@
 #define HW_CTRL_HALT         (1 << 7)
 
 #define MON_CLEANUP      170    // clean up monitor mode
-#define MON_NMI_PREP     171    // NMI preparation
-#define MON_NMI_ENTER    172    // NMI monitor
-#define MON_RST08_PREP   173    // RST08 preparation
-#define MON_RST08_ENTER  174    // RST08 monitor
+#define MON_PREPARE      171    // prepare monitor mode
+#define MON_ENTER        172    // clean up monitor mode
 
 #define MMU_INVALID_BANK 0xff
 
@@ -151,8 +149,8 @@ extern unsigned int mon_step_execution;
 void mon_init(void);
 void mon_assert_nmi(void);
 void mon_setup(void);
-void mon_prepare(int nmi);
-void mon_enter(int nmi);
+void mon_prepare(void);
+void mon_enter(void);
 int mon_prompt(void);
 void mon_leave(void);
 void mon_cleanup(void);
