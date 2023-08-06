@@ -55,6 +55,7 @@ struct trampoline_work_s {
     uint16_t fake_ret_addr;
     uint16_t pc;
     uint16_t sp;
+    uint16_t cleanup_code_location;
     uint8_t nmi;
     uint8_t rfu;
 };
@@ -157,7 +158,6 @@ static void install_nmi_vector(int bank)
 static void install_rst_vector(int bank)
 {
     memcpy(tmp_buf[0], &trampoline[RST_VECTOR], RST_VECTOR_SIZE);
-    memcpy(&tmp_buf[0][4], &z80_context.w.pc, 2);
     __write_to_sram(bank_phys_addr(bank, RST_VECTOR), tmp_buf[0], RST_VECTOR_SIZE);
 }
 
@@ -267,6 +267,14 @@ void mon_enter()
     #endif
 
     __read_from_sram(phys_addr(trampoline_work), &z80_context.w, sizeof(z80_context.w));
+
+    if (z80_context.w.pc < 0x0100) {
+        // Assume that the target is executing the bootloader in early boot stage
+        z80_context.w.cleanup_code_location = 0x0200;
+    } else {
+        z80_context.w.cleanup_code_location = 0x0000;
+    }
+
     mon_cur_addr = z80_context.w.pc;
 
     if (mon_step_execution) {
@@ -940,7 +948,13 @@ void mon_cleanup(void)
     // printf("\n\rCleanup monitor\n\r");
 
     uninstall_trampoline();
-    install_rst_vector(mmu_bank);
+
+    if (z80_context.w.cleanup_code_location == 0x0000) {
+        // Use modified RST 08h vector to return to original NMI return addess
+        install_rst_vector(mmu_bank);
+        tmp_buf[0][0] = 0xc9;  // Z80 RET instruction
+        __write_to_sram(phys_addr(0x000b), &tmp_buf[0], 1);
+    }
 
     if (mon_step_execution) {
         invoke_monitor = 1;
