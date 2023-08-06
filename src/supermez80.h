@@ -52,40 +52,40 @@
 // Constant value definitions
 //
 
-#define UART_DREG 0x01          // Data REG
-#define UART_CREG 0x00          // Control REG
-#define DISK_REG_DATA    8      // fdc-port: data (non-DMA)
-#define DISK_REG_DRIVE   10     // fdc-port: # of drive
-#define DISK_REG_TRACK   11     // fdc-port: # of track
-#define DISK_REG_SECTOR  12     // fdc-port: # of sector
-#define DISK_REG_FDCOP   13     // fdc-port: command
+#define UART_DREG 0x01          // 01h Data REG
+#define UART_CREG 0x00          // 00h Control REG
+#define DISK_REG_DATA    8      // 08h fdc-port: data (non-DMA)
+#define DISK_REG_DRIVE   10     // 0Ah fdc-port: # of drive
+#define DISK_REG_TRACK   11     // 0Bh fdc-port: # of track
+#define DISK_REG_SECTOR  12     // 0Ch fdc-port: # of sector
+#define DISK_REG_FDCOP   13     // 0Dh fdc-port: command
 #define DISK_OP_DMA_READ     0
 #define DISK_OP_DMA_WRITE    1
 #define DISK_OP_READ         2
 #define DISK_OP_WRITE        3
-#define DISK_REG_FDCST   14     // fdc-port: status
+#define DISK_REG_FDCST   14     // OEh fdc-port: status
 #define DISK_ST_SUCCESS      0x00
 #define DISK_ST_ERROR        0x01
-#define DISK_REG_DMAL    15     // dma-port: dma address low
-#define DISK_REG_DMAH    16     // dma-port: dma address high
-#define DISK_REG_SECTORH 17     // fdc-port: # of sector high
+#define DISK_REG_DMAL    15     // OFh dma-port: dma address low
+#define DISK_REG_DMAH    16     // 10h dma-port: dma address high
+#define DISK_REG_SECTORH 17     // 11h fdc-port: # of sector high
 
-#define MMU_INIT         20     // MMU initialisation
-#define MMU_BANK_SEL     21     // MMU bank select
-#define MMU_SEG_SIZE     22     // MMU select segment size (in pages a 256 bytes)
-#define MMU_WR_PROT      23     // MMU write protect/unprotect common memory segment
+#define MMU_INIT         20     // 14h MMU initialisation
+#define MMU_BANK_SEL     21     // 15h MMU bank select
+#define MMU_SEG_SIZE     22     // 16h MMU select segment size (in pages a 256 bytes)
+#define MMU_WR_PROT      23     // 17h MMU write protect/unprotect common memory segment
 
-#define HW_CTRL          160    // hardware control
+#define HW_CTRL          160    // A0h hardware control
 #define HW_CTRL_LOCKED       0xff
 #define HW_CTRL_UNLOCKED     0x00
 #define HW_CTRL_MAGIC        0xaa
 #define HW_CTRL_RESET        (1 << 6)
 #define HW_CTRL_HALT         (1 << 7)
 
-#define MON_CLEANUP      170    // clean up monitor mode
-#define MON_PREPARE      171    // prepare monitor mode
-#define MON_ENTER        172    // clean up monitor mode
-#define TGTINV_TRAP      173    // return from target CPU invocation
+#define MON_CLEANUP      170    // AAh clean up monitor mode
+#define MON_PREPARE      171    // ABh prepare monitor mode
+#define MON_ENTER        172    // ACh clean up monitor mode
+#define TGTINV_TRAP      173    // ADh return from target CPU invocation
 
 #define MMU_INVALID_BANK 0xff
 
