@@ -662,6 +662,10 @@ int io_wait_write(uint8_t wait_io_addr, uint8_t *result_io_data)
             //
             // This might be a dirty hack. But works well?
             //
+            #ifdef CPM_IO_DEBUG
+            printf("%s: %3d      (%02XH     ) ... disk_stat=%02Xh\n\r", __func__,
+                   wait_io_addr, wait_io_addr, disk_stat);
+            #endif
             set_data_dir(0x00);         // Set as output
             set_data_pins(disk_stat);
             // Let Z80 read the data
