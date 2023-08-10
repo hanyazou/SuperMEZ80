@@ -711,40 +711,42 @@ int io_wait_write(uint8_t wait_io_addr, uint8_t *result_io_data)
     return result;
 }
 
+void io_invoke_target_cpu_prepare(int *saved_status)
+{
+    assert(io_stat() != IO_STAT_STOPPED || io_stat() != IO_STAT_INTERRUPTED);
+
+    if (io_stat() == IO_STAT_INTERRUPTED) {
+        *saved_status = 0;
+        return;
+    }
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_setup()\n\r", __func__);
+    #endif
+    bus_master(1);
+    mon_setup();            // Hook NMI handler and assert /NMI
+
+    io_wait_write(MON_PREPARE, NULL);
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_prepare()\n\r", __func__);
+    #endif
+    mon_prepare();          // Install the trampoline code
+    io_wait_write(MON_ENTER, NULL);
+    io_stat_ = IO_STAT_INTERRUPTED;
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_enter()\n\r", __func__);
+    #endif
+    mon_enter();            // Now we can use the trampoline
+
+    *saved_status = 1;
+    return;
+}
+
 int io_invoke_target_cpu(const void *code, unsigned int len, const void *params, unsigned int plen)
 {
-    int not_in_the_monitor = 0;
     uint8_t result_data;
-
-    if (io_stat() != IO_STAT_STOPPED && io_stat() != IO_STAT_INTERRUPTED) {
-        return -1;
-    }
-
-    if (io_stat() == IO_STAT_STOPPED) {
-        not_in_the_monitor = 1;
-    }
-
-    if (not_in_the_monitor) {
-        #ifdef CPM_IO_DEBUG
-        printf("%s: mon_setup()\n\r", __func__);
-        #endif
-        bus_master(1);
-        mon_setup();            // Hook NMI handler and assert /NMI
-
-        io_wait_write(MON_PREPARE, NULL);
-
-        #ifdef CPM_IO_DEBUG
-        printf("%s: mon_prepare()\n\r", __func__);
-        #endif
-        mon_prepare();          // Install the trampoline code
-        io_wait_write(MON_ENTER, NULL);
-        io_stat_ = IO_STAT_INTERRUPTED;
-
-        #ifdef CPM_IO_DEBUG
-        printf("%s: mon_enter()\n\r", __func__);
-        #endif
-        mon_enter();            // Now we can use the trampoline
-    }
 
     assert(io_stat() == IO_STAT_INTERRUPTED);
     mon_destroy_trampoline();
@@ -759,24 +761,33 @@ int io_invoke_target_cpu(const void *code, unsigned int len, const void *params,
     // Run the code
     io_wait_write(TGTINV_TRAP, &result_data);
 
-    if (not_in_the_monitor) {
-        #ifdef CPM_IO_DEBUG
-        printf("%s: mon_leave()\n\r", __func__);
-        #endif
-        mon_leave();
+    return (int)(signed char)result_data;
+}
 
-        io_wait_write(MON_CLEANUP, NULL);
-
-        #ifdef CPM_IO_DEBUG
-        printf("%s: mon_cleanup() ...\n\r", __func__);
-        #endif
-        mon_cleanup();
-
-        #ifdef CPM_IO_DEBUG
-        printf("%s: mon_cleanup() ... done\n\r", __func__);
-        #endif
-        io_stat_ = IO_STAT_STOPPED;
+void io_invoke_target_cpu_teardown(int *saved_status)
+{
+    if (*saved_status == 0) {
+        return;
     }
 
-    return (int)(signed char)result_data;
+    assert(io_stat() == IO_STAT_INTERRUPTED);
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_leave()\n\r", __func__);
+    #endif
+    mon_leave();
+
+    io_wait_write(MON_CLEANUP, NULL);
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_cleanup() ...\n\r", __func__);
+    #endif
+    mon_cleanup();
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_cleanup() ... done\n\r", __func__);
+    #endif
+    io_stat_ = IO_STAT_STOPPED;
+
+    *saved_status = 0;  // fail safe
 }
