@@ -22,10 +22,6 @@ void (*mmu_bank_config_callback)(void) = NULL;
 
 void mem_init()
 {
-}
-
-void mem_check()
-{
     unsigned int i;
     uint32_t addr;
 

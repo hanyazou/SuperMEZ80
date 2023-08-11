@@ -57,11 +57,6 @@ const unsigned char rom[] = {
 #endif
 };
 
-const unsigned char dummy_rom[] = {
-// Dummy program, infinite HALT loop that do nothing
-#include "dummy.inc"
-};
-
 void bus_master(int enable);
 void sys_init(void);
 int disk_init(void);
@@ -78,17 +73,15 @@ void main(void)
     mem_init();
     mon_init();
 
-    // Start Z80 as DMA helper
-    dma_write_to_sram(0x00000, dummy_rom, sizeof(dummy_rom));
-    start_z80();
-    mem_check();
-    set_reset_pin(0);
-    bus_master(1);
-
 #if !defined(CPM_MMU_EXERCISE)
     if (disk_select() < 0)
         while (1);
 #endif  // !CPM_MMU_EXERCISE
+
+    //
+    // Transfer ROM image to the SRAM
+    //
+    dma_write_to_sram(0x00000, rom, sizeof(rom));
 
     //
     // Start Z80
@@ -99,14 +92,6 @@ void main(void)
         printf("Use RA3 external clock for Z80\n\r");
     }
     printf("\n\r");
-
-    //
-    // Transfer ROM image to the SRAM and execute it
-    //
-    dma_write_to_sram(0x00000, rom, sizeof(rom));
-
-    bus_master(0);
-    set_reset_pin(1);
     start_z80();
 
     U3RXIE = 1;          // Receiver interrupt enable
