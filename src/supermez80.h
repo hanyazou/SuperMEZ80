@@ -183,6 +183,7 @@ extern void (*mmu_bank_select_callback)(int from, int to);
 extern void (*mmu_bank_config_callback)(void);
 
 extern void mem_init(void);
+extern void mem_check(void);
 #define bank_phys_addr(bank, addr) (((uint32_t)(bank) << 16) + (addr))
 #define phys_addr(addr) bank_phys_addr(mmu_bank, (addr))
 extern void set_bank_pins(uint32_t addr);
