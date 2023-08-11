@@ -24,6 +24,7 @@ void mem_init()
 {
     unsigned int i;
     uint32_t addr;
+    uint32_t non_zero_page = 0x300;
 
 #ifdef NO_MEMORY_CHECK
     mmu_mem_size = 0x40000;
@@ -46,8 +47,12 @@ void mem_init()
         tmp_buf[0][i + 0] = 0xa5;
         tmp_buf[0][i + 1] = 0x5a;
     }
-    for (addr = 0; addr < MAX_MEM_SIZE; addr += MEM_CHECK_UNIT) {
+    for (addr = non_zero_page; addr < MAX_MEM_SIZE; addr += MEM_CHECK_UNIT) {
+        #ifdef CPM_MMU_DEBUG
+        printf("Memory %06lXH\r\n", addr);
+        #else
         printf("Memory 000000 - %06lXH\r", addr);
+        #endif
         tmp_buf[0][0] = (addr >>  0) & 0xff;
         tmp_buf[0][1] = (addr >>  8) & 0xff;
         tmp_buf[0][2] = (addr >> 16) & 0xff;
@@ -56,14 +61,14 @@ void mem_init()
         if (memcmp(tmp_buf[0], tmp_buf[1], TMP_BUF_SIZE) != 0) {
             #ifdef CPM_MMU_DEBUG
             printf("\nMemory error at %06lXH\n\r", addr);
-            util_hexdump_sum(" write: ", tmp_buf[0], TMP_BUF_SIZE);
-            util_hexdump_sum("verify: ", tmp_buf[1], TMP_BUF_SIZE);
+            util_addrdump("WR: ", addr, tmp_buf[0], TMP_BUF_SIZE);
+            util_addrdump("RD: ", addr, tmp_buf[1], TMP_BUF_SIZE);
             #endif
             break;
         }
-        if (addr == 0)
+        if (addr == non_zero_page)
             continue;
-        dma_read_from_sram(0, tmp_buf[1], TMP_BUF_SIZE);
+        dma_read_from_sram(non_zero_page, tmp_buf[1], TMP_BUF_SIZE);
         if (memcmp(tmp_buf[0], tmp_buf[1], TMP_BUF_SIZE) == 0) {
             // the page at addr is the same as the first page
             break;
@@ -71,9 +76,13 @@ void mem_init()
     }
     mmu_mem_size = addr;
     #ifdef CPM_MMU_DEBUG
-    for (addr = 0; addr < mmu_mem_size; addr += MEM_CHECK_UNIT) {
+    for (addr = non_zero_page; addr < mmu_mem_size; addr += MEM_CHECK_UNIT) {
+        #ifdef CPM_MMU_DEBUG
+        printf("Memory %06lXH\r\n", addr);
+        #else
         printf("Memory 000000 - %06lXH\r", addr);
-        if (addr == 0 || (addr & 0xc000))
+        #endif
+        if (addr == non_zero_page || (addr & 0xc000))
             continue;
         tmp_buf[0][0] = (addr >>  0) & 0xff;
         tmp_buf[0][1] = (addr >>  8) & 0xff;
@@ -82,8 +91,8 @@ void mem_init()
         dma_read_from_sram(addr, tmp_buf[1], TMP_BUF_SIZE);
         if (memcmp(tmp_buf[0], tmp_buf[1], TMP_BUF_SIZE) != 0) {
             printf("\nMemory error at %06lXH\n\r", addr);
-            util_hexdump_sum(" canon: ", tmp_buf[0], TMP_BUF_SIZE);
-            util_hexdump_sum("  read: ", tmp_buf[1], TMP_BUF_SIZE);
+            util_addrdump("CA: ", addr, tmp_buf[0], TMP_BUF_SIZE);
+            util_addrdump("RD: ", addr, tmp_buf[1], TMP_BUF_SIZE);
             while (1);
         }
     }
@@ -97,8 +106,8 @@ void mem_init()
         dma_read_from_sram(0x0c000, tmp_buf[0], TMP_BUF_SIZE);
         if (memcmp(tmp_buf[0], tmp_buf[1], TMP_BUF_SIZE) != 0) {
             printf("\nMemory error at %06lXH\n\r", addr);
-            util_hexdump_sum("expect: ", tmp_buf[1], TMP_BUF_SIZE);
-            util_hexdump_sum("  read: ", tmp_buf[0], TMP_BUF_SIZE);
+            util_addrdump("EX: ", 0x0c000, tmp_buf[1], TMP_BUF_SIZE);
+            util_addrdump("RD: ", 0x0c000, tmp_buf[0], TMP_BUF_SIZE);
             while (1);
         }
     }
