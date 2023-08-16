@@ -65,6 +65,8 @@ static const uint16_t trampoline_work =
 static unsigned char zero_page_saved[ZERO_PAGE_SIZE];
 static int trampoline_installed = MMU_INVALID_BANK;
 static int trampoline_destroyed = 0;
+static unsigned char nmi_vector_saved[NMI_VECTOR_SIZE];
+static int nmi_vector_installed = MMU_INVALID_BANK;
 
 // Saved Z80 Context
 struct z80_context_s {
@@ -119,6 +121,25 @@ void mon_show_registers(void)
     printf("\n\r");
 }
 
+static void uninstall_nmi_vector(void)
+{
+    if (nmi_vector_installed == MMU_INVALID_BANK)
+        return;
+    __write_to_sram(bank_phys_addr(nmi_vector_installed, NMI_VECTOR), nmi_vector_saved,
+                    NMI_VECTOR_SIZE);
+    nmi_vector_installed = MMU_INVALID_BANK;
+}
+
+static void install_nmi_vector(int bank)
+{
+    if (nmi_vector_installed != MMU_INVALID_BANK) {
+        uninstall_nmi_vector();
+    }
+    __read_from_sram(bank_phys_addr(bank, NMI_VECTOR), nmi_vector_saved, NMI_VECTOR_SIZE);
+    __write_to_sram(bank_phys_addr(bank, NMI_VECTOR), &trampoline[NMI_VECTOR], NMI_VECTOR_SIZE);
+    nmi_vector_installed = bank;
+}
+
 static void uninstall_trampoline(void)
 {
     if (trampoline_installed == MMU_INVALID_BANK)
@@ -160,11 +181,6 @@ void mon_use_zeropage(int bank)
         install_trampoline(bank);
     }
     trampoline_destroyed = 1;
-}
-
-static void install_nmi_vector(int bank)
-{
-    __write_to_sram(bank_phys_addr(bank, NMI_VECTOR), &trampoline[NMI_VECTOR], NMI_VECTOR_SIZE);
 }
 
 static void install_rst_vector(int bank)
@@ -1061,6 +1077,7 @@ void mon_cleanup(void)
     // printf("\n\rCleanup monitor\n\r");
 
     uninstall_trampoline();
+    uninstall_nmi_vector();
 
     if (z80_context.w.cleanup_code_location == 0x0000) {
         // Use modified RST 08h vector to return to original NMI return addess
