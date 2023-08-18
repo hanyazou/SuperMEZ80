@@ -32,46 +32,46 @@
 #include <SDCard.h>
 #include <fatdisk_debug.h>
 
-static const unsigned char nmimon[] = {
-// NMI entry at 0x0066
-#include "nmimon.inc"
+static const unsigned char trampoline[] = {
+// trampoline code at zero page
+#include "trampoline.inc"
 };
+
+#define ZERO_PAGE 0x0000
+#define ZERO_PAGE_SIZE 256
 #define NMI_VECTOR 0x0066
 #define NMI_VECTOR_SIZE 3
-#define NMI_HOOK (NMI_VECTOR + NMI_VECTOR_SIZE)
-#define NMI_HOOK_SIZE (sizeof(nmimon) - NMI_HOOK)
-static const unsigned char *nmi_vector = &nmimon[NMI_VECTOR];
-static const unsigned char *nmi_hook = &nmimon[NMI_HOOK];
-static const uint16_t nmi_hook_stack = sizeof(nmimon);
-static unsigned char nmi_hook_saved[NMI_HOOK_SIZE];
-static int nmi_hook_installed = MMU_INVALID_BANK;
-
-static const unsigned char rstmon[] = {
-// break point interrupt entry at 0x0008
-#include "rstmon.inc"
-};
 #define RST_VECTOR 0x0008
-#define RST_VECTOR_SIZE 3
-#define RST_HOOK (RST_VECTOR + RST_VECTOR_SIZE)
-#define RST_HOOK_SIZE (sizeof(rstmon) - RST_HOOK)
-static const unsigned char *rst_vector = &rstmon[RST_VECTOR];
-static const unsigned char *rst_hook = &rstmon[RST_HOOK];
-static const uint16_t rst_hook_stack = sizeof(rstmon);
-static unsigned char rst_hook_saved[RST_HOOK_SIZE];
-static int rst_hook_installed = MMU_INVALID_BANK;
+#define RST_VECTOR_SIZE 6
+
+// this structure must equals to work area in the trampoline code. see trampoline.z80
+struct trampoline_work_s {
+    uint16_t iy;
+    uint16_t ix;
+    uint16_t hl;
+    uint16_t de;
+    uint16_t bc;
+    uint16_t af;
+    uint16_t fake_ret_addr;
+    uint16_t pc;
+    uint16_t sp;
+    uint16_t cleanup_code_location;
+    uint8_t nmi;
+    uint8_t rfu;
+};
+
+static const uint16_t trampoline_work =
+    sizeof(trampoline) - sizeof(struct trampoline_work_s);
+static unsigned char zero_page_saved[ZERO_PAGE_SIZE];
+static int trampoline_installed = MMU_INVALID_BANK;
+static int trampoline_destroyed = 0;
+static unsigned char nmi_vector_saved[NMI_VECTOR_SIZE];
+static int nmi_vector_installed = MMU_INVALID_BANK;
 
 // Saved Z80 Context
 struct z80_context_s {
-    uint16_t pc;
-    uint16_t sp;
-    uint16_t af;
-    uint16_t bc;
-    uint16_t de;
-    uint16_t hl;
-    uint16_t ix;
-    uint16_t iy;
+    struct trampoline_work_s w;
     uint8_t saved_prog[2];
-    int nmi;
 };
 
 int invoke_monitor = 0;
@@ -100,70 +100,92 @@ void write_mcu_mem_w(void *addr, uint16_t val)
 
 void mon_show_registers(void)
 {
-    printf("PC: %04X  ", z80_context.pc);
-    printf("SP: %04X  ", z80_context.sp);
-    printf("AF: %04X  ", z80_context.af);
-    printf("BC: %04X  ", z80_context.bc);
-    printf("DE: %04X  ", z80_context.de);
-    printf("HL: %04X  ", z80_context.hl);
-    printf("IX: %04X  ", z80_context.ix);
-    printf("IY: %04X\n\r", z80_context.iy);
+    printf("PC: %04X  ", z80_context.w.pc);
+    printf("SP: %04X  ", z80_context.w.sp);
+    printf("AF: %04X  ", z80_context.w.af);
+    printf("BC: %04X  ", z80_context.w.bc);
+    printf("DE: %04X  ", z80_context.w.de);
+    printf("HL: %04X  ", z80_context.w.hl);
+    printf("IX: %04X  ", z80_context.w.ix);
+    printf("IY: %04X\n\r", z80_context.w.iy);
     printf("MMU: bank %02X  ", mmu_bank);
     printf("STATUS: %c%c%c%c%c%c%c%c",
-           (z80_context.af & 0x80) ? 'S' : '-',
-           (z80_context.af & 0x40) ? 'Z' : '-',
-           (z80_context.af & 0x20) ? 'X' : '-',
-           (z80_context.af & 0x10) ? 'H' : '-',
-           (z80_context.af & 0x08) ? 'X' : '-',
-           (z80_context.af & 0x04) ? 'P' : '-',
-           (z80_context.af & 0x02) ? 'N' : '-',
-           (z80_context.af & 0x01) ? 'C' : '-');
+           (z80_context.w.af & 0x80) ? 'S' : '-',
+           (z80_context.w.af & 0x40) ? 'Z' : '-',
+           (z80_context.w.af & 0x20) ? 'X' : '-',
+           (z80_context.w.af & 0x10) ? 'H' : '-',
+           (z80_context.w.af & 0x08) ? 'X' : '-',
+           (z80_context.w.af & 0x04) ? 'P' : '-',
+           (z80_context.w.af & 0x02) ? 'N' : '-',
+           (z80_context.w.af & 0x01) ? 'C' : '-');
     printf("\n\r");
 }
 
-static void uninstall_nmi_hook(void)
+static void uninstall_nmi_vector(void)
 {
-    if (nmi_hook_installed == MMU_INVALID_BANK)
+    if (nmi_vector_installed == MMU_INVALID_BANK)
         return;
-    dma_write_to_sram(bank_phys_addr(nmi_hook_installed, NMI_HOOK), nmi_hook_saved, NMI_HOOK_SIZE);
-    nmi_hook_installed = MMU_INVALID_BANK;
-}
-
-static void install_nmi_hook(int bank)
-{
-    if (nmi_hook_installed != MMU_INVALID_BANK) {
-        uninstall_nmi_hook();
-    }
-    dma_read_from_sram(bank_phys_addr(bank, NMI_HOOK), nmi_hook_saved, NMI_HOOK_SIZE);
-    dma_write_to_sram(bank_phys_addr(bank, NMI_HOOK), nmi_hook, NMI_HOOK_SIZE);
-    nmi_hook_installed = bank;
+    __write_to_sram(bank_phys_addr(nmi_vector_installed, NMI_VECTOR), nmi_vector_saved,
+                    NMI_VECTOR_SIZE);
+    nmi_vector_installed = MMU_INVALID_BANK;
 }
 
 static void install_nmi_vector(int bank)
 {
-    dma_write_to_sram(bank_phys_addr(bank, NMI_VECTOR), nmi_vector, NMI_VECTOR_SIZE);
+    if (nmi_vector_installed != MMU_INVALID_BANK) {
+        uninstall_nmi_vector();
+    }
+    __read_from_sram(bank_phys_addr(bank, NMI_VECTOR), nmi_vector_saved, NMI_VECTOR_SIZE);
+    __write_to_sram(bank_phys_addr(bank, NMI_VECTOR), &trampoline[NMI_VECTOR], NMI_VECTOR_SIZE);
+    nmi_vector_installed = bank;
 }
 
-static void uninstall_rst_hook(void)
+static void uninstall_trampoline(void)
 {
-    if (rst_hook_installed == MMU_INVALID_BANK)
+    if (trampoline_installed == MMU_INVALID_BANK)
         return;
-    dma_write_to_sram(bank_phys_addr(rst_hook_installed, RST_HOOK), rst_hook_saved, RST_HOOK_SIZE);
-    rst_hook_installed = MMU_INVALID_BANK;
+    __write_to_sram(bank_phys_addr(trampoline_installed, ZERO_PAGE), zero_page_saved,
+                    ZERO_PAGE_SIZE);
+    trampoline_installed = MMU_INVALID_BANK;
 }
 
-static void install_rst_hook(int bank)
+static void install_trampoline(int bank)
 {
-    if (rst_hook_installed != MMU_INVALID_BANK)
-        uninstall_rst_hook();
-    dma_read_from_sram(bank_phys_addr(bank, RST_HOOK), rst_hook_saved, RST_HOOK_SIZE);
-    dma_write_to_sram(bank_phys_addr(bank, RST_HOOK), rst_hook, RST_HOOK_SIZE);
-    rst_hook_installed = bank;
+    if (trampoline_installed != MMU_INVALID_BANK) {
+        uninstall_trampoline();
+    }
+    __read_from_sram(bank_phys_addr(bank, ZERO_PAGE), zero_page_saved, sizeof(zero_page_saved));
+    __write_to_sram(bank_phys_addr(bank, ZERO_PAGE), trampoline, sizeof(trampoline));
+    trampoline_installed = bank;
+    trampoline_destroyed = 0;
+}
+
+static void reinstall_trampoline(void)
+{
+    if (trampoline_installed == mmu_bank && !trampoline_destroyed) {
+        return;
+    }
+    if (trampoline_installed != mmu_bank) {
+        install_trampoline(mmu_bank);
+    } else {
+        __write_to_sram(bank_phys_addr(mmu_bank, ZERO_PAGE), trampoline, sizeof(trampoline));
+    }
+    __write_to_sram(bank_phys_addr(trampoline_installed, trampoline_work), &z80_context.w,
+                    sizeof(z80_context.w));
+    trampoline_destroyed = 0;
+}
+
+void mon_use_zeropage(int bank)
+{
+    if (trampoline_installed != bank) {
+        install_trampoline(bank);
+    }
+    trampoline_destroyed = 1;
 }
 
 static void install_rst_vector(int bank)
 {
-    dma_write_to_sram(bank_phys_addr(bank, RST_VECTOR), rst_vector, NMI_VECTOR_SIZE);
+    __write_to_sram(bank_phys_addr(bank, RST_VECTOR), &trampoline[RST_VECTOR], RST_VECTOR_SIZE);
 }
 
 static void bank_select_callback(int from, int to)
@@ -243,7 +265,7 @@ void mon_init(void)
 
 void mon_assert_nmi(void)
 {
-    mcp23s08_write(MCP23S08_ctx, GPIO_NMI, 0);
+    set_nmi_pin(0);
 }
 
 void mon_setup(void)
@@ -252,65 +274,43 @@ void mon_setup(void)
     mon_assert_nmi();
 }
 
-void mon_prepare(int nmi)
+void mon_prepare()
 {
-    if (nmi) {
-        install_nmi_hook(mmu_bank);
-    } else {
-        install_rst_hook(mmu_bank);
-    }
+    install_trampoline(mmu_bank);
 }
 
-void mon_enter(int nmi)
+void mon_enter()
 {
-    static unsigned int prev_output_chars = 0;
     uint16_t stack_addr;
 
-    // wait for console output buffer empty
-    con_flush_buffer();
-
-    // new line if some output from the target
-    if (prev_output_chars != io_output_chars) {
-        printf("\n\r");
-        prev_output_chars = io_output_chars;
-    }
     #ifdef CPM_MON_DEBUG
     printf("Enter monitor\n\r");
     #endif
-    if (nmi) {
-        stack_addr = nmi_hook_stack;
+
+    __read_from_sram(phys_addr(trampoline_work), &z80_context.w, sizeof(z80_context.w));
+
+    if (z80_context.w.pc < 0x0100) {
+        // Assume that the target is executing the bootloader in early boot stage
+        z80_context.w.cleanup_code_location = 0x0200;
     } else {
-        stack_addr = rst_hook_stack;
+        z80_context.w.cleanup_code_location = 0x0000;
     }
-    z80_context.nmi = nmi;
 
-    dma_read_from_sram(phys_addr(0x0000), tmp_buf[0], stack_addr);
-    z80_context.sp = read_mcu_mem_w(&tmp_buf[0][stack_addr - 2]);
-    z80_context.af = read_mcu_mem_w(&tmp_buf[0][stack_addr - 4]);
-    z80_context.bc = read_mcu_mem_w(&tmp_buf[0][stack_addr - 6]);
-    z80_context.de = read_mcu_mem_w(&tmp_buf[0][stack_addr - 8]);
-    z80_context.hl = read_mcu_mem_w(&tmp_buf[0][stack_addr - 10]);
-    z80_context.ix = read_mcu_mem_w(&tmp_buf[0][stack_addr - 12]);
-    z80_context.iy = read_mcu_mem_w(&tmp_buf[0][stack_addr - 14]);
-
-    uint16_t sp = z80_context.sp;
-    dma_read_from_sram(phys_addr(sp), tmp_buf[0], 2);
-    z80_context.pc = read_mcu_mem_w(tmp_buf[0]);
-    mon_cur_addr = z80_context.pc;
+    mon_cur_addr = z80_context.w.pc;
 
     if (mon_step_execution) {
         mon_step_execution--;
-        mon_cur_addr = z80_context.pc;
+        mon_cur_addr = z80_context.w.pc;
 
         mon_show_registers();
-        dma_read_from_sram(phys_addr(mon_cur_addr), tmp_buf[0], 64);
+        __read_from_sram(phys_addr(mon_cur_addr), tmp_buf[0], 64);
         disas_ops(disas_z80, phys_addr(mon_cur_addr), tmp_buf[0], 64, 1, NULL);
     }
 
-    if (!nmi && mon_bp_installed && z80_context.pc == (mon_bp_addr & 0xffff) + 1) {
+    if (!z80_context.w.nmi && mon_bp_installed && z80_context.w.pc == (mon_bp_addr & 0xffff) + 1) {
         printf("Break at %04X\n\r", (uint16_t)(mon_bp_addr & 0xffff));
-        dma_write_to_sram(mon_bp_addr, &mon_bp_saved_inst, 1);
-        z80_context.pc--;
+        __write_to_sram(mon_bp_addr, &mon_bp_saved_inst, 1);
+        z80_context.w.pc--;
         mon_bp_installed = 0;
         mon_cur_addr = mon_bp_addr;
     }
@@ -409,28 +409,54 @@ int mon_cmd_clearbreakpoint(int argc, char *args[]);
 int mon_cmd_continue(int argc, char *args[]);
 int mon_cmd_reset(int argc, char *args[]);
 int mon_cmd_set(int argc, char *args[]);
+int mon_cmd_write(int argc, char *args[]);
 
 #define MON_MAX_ARGS 4
-#define MON_STR_ARG1 (1 << 0)
+#define MON_STR_ARG(n) (1 << (n))
 static const struct {
     const char *name;
     uint8_t nargs;
     int (*function)(int argc, char *args[]);
     unsigned int flags;
+    const char *argument;
+    const char *description;
 } mon_cmds[] = {
+    #ifndef NO_MON_BREAKPOINT
     { "breakpoint",     1, mon_cmd_breakpoint        },
     { "clearbreakpoint",0, mon_cmd_clearbreakpoint   },
-    { "continue",       0, mon_cmd_continue          },
-    { "disassemble",    2, mon_cmd_disassemble       },
+    #endif
+    { "continue",       0, mon_cmd_continue,         0,
+      "",
+      "Exit monitor and continue execution" },
+    { "disassemble",    2, mon_cmd_disassemble,      0,
+      "[addr][,length]",
+      "Translate machine code on the target memory" },
     { "di",             2, mon_cmd_disassemble       },
-    { "diskread",       4, mon_cmd_diskread          },
-    { "dump",           2, mon_cmd_dump              },
-    { "reset",          0, mon_cmd_reset             },
-    { "sdread",         2, mon_cmd_sdread            },
-    { "set",            2, mon_cmd_set,              MON_STR_ARG1   },
+    { "diskread",       4, mon_cmd_diskread,         0,
+      "[drive][,track][,sector][,length] or [drive,]LBA",
+      "Display sector(s) from disk image file" },
+    { "dump",           2, mon_cmd_dump,             0,
+      "[addr][,length]",
+      "Display data on the target memory" },
+    { "reset",          0, mon_cmd_reset,            0,
+      "Restart the system" },
+    { "sdread",         2, mon_cmd_sdread,           0,
+      "[LBA][,length]",
+      "Display data block(s) from the SD Card" },
+    { "set",            2, mon_cmd_set,              MON_STR_ARG(0),
+      "[variable][=value]",
+      "Display or change specified debug variable" },
+    #ifndef NO_MON_STEP
     { "step",           1, mon_cmd_step              },
-    { "status",         0, mon_cmd_status            },
-    { "help",           0, mon_cmd_help              },
+    #endif
+    { "status",         0, mon_cmd_status,           0,
+      "",
+      "Display status of the target" },
+    { "write",          2, mon_cmd_write,            MON_STR_ARG(1),
+      "[addr],value",
+      "Write byte or string to the target memory" },
+    { "help",           0, mon_cmd_help,             0,
+      "Display this message" },
 };
 #define MON_INVALID_CMD_INDEX UTIL_ARRAYSIZEOF(mon_cmds)
 
@@ -446,9 +472,79 @@ void mon_remove_trailing_space(char **linep)
         *((*linep)++) = '\0';
 }
 
+int mon_chartoval(char **strp, uint8_t *valp)
+{
+    uint8_t res;
+    uint8_t val;
+    char *str;
+    static char *curptr;
+
+    if (strp != NULL) {
+        str = *strp;
+    } else {
+        str = curptr;
+    }
+
+    if (str == NULL || str[0] == '\0') {
+        res = 0;  // no more value
+        goto exit;
+    }
+
+    if (str[0] == '\'') {
+        res = 0;  // no more value
+        str++;
+        goto exit;
+    }
+
+    if (str[0] != '\\') {
+        val = str[0] & 0xff;
+        str++;
+        res = 1;
+        goto exit;
+    }
+
+    if (str[1] == '\0') {
+        res = 0;
+        str++;
+        goto exit;
+    }
+    switch (str[1]) {
+    case '\\': val = '\\'; break;
+    case '\'': val = '\''; break;
+    case '\"': val = '\"'; break;
+    case 't':  val = '\t'; break;
+    case 'n':  val = '\n'; break;
+    case 'r':  val = '\r'; break;
+    default:   val = str[1]; break;
+    }
+
+    str += 2;
+    res = 1;
+
+ exit:
+    if (valp)
+        *valp = val;
+    if (strp)
+        *strp = str;
+    curptr = str;
+
+    return res;
+}
+
 int mon_get_str(char **linep)
 {
     int result = 0;
+
+    if (**linep == '\'') {
+        char *tmpp = ++(*linep);
+        while (mon_chartoval(linep, NULL)) {
+            // nothing to do
+        }
+        result =  *linep - tmpp;
+        mon_remove_trailing_space(linep);
+
+        return result;
+    }
 
     while (1) {
         char c = **linep;
@@ -486,12 +582,25 @@ int mon_get_hexval(char **linep)
 
 uint32_t mon_strtoval(char *str)
 {
+    static char *null_str = { 0 };
+    mon_chartoval(&null_str, NULL);
+
     if (str[0] == '\0')
         return 0;
     if (str[0] == '0' && str[1] == 'x')
         return strtoul(&str[2], NULL, 16);;
     if (str[strlen(str) - 1] == 'h' || str[strlen(str) - 1] == 'H')
         return strtoul(str, NULL, 16);;
+    if (str[0] == '\'') {
+        uint8_t res;
+        char *tmpp;
+        tmpp = &str[1];
+        if (mon_chartoval(&tmpp, &res))
+            return res;
+        else
+            return '\'';  // error
+    }
+
     return strtoul(str, NULL, 10);;
 }
 
@@ -553,7 +662,7 @@ int mon_parse(char *line, unsigned int *command, char *args[MON_MAX_ARGS])
     for (i = 0; i < mon_cmds[match_idx].nargs; i++) {
         mon_remove_space(&line);
         args[i] = line;
-        if (i == 0 && (mon_cmds[match_idx].flags & MON_STR_ARG1)) {
+        if (mon_cmds[match_idx].flags & MON_STR_ARG(i)) {
             if (mon_get_str(&line) == 0 && *line == '\0') {
                 // reach end of the line without any argument
                 args[i] = NULL;
@@ -586,7 +695,12 @@ int mon_parse(char *line, unsigned int *command, char *args[MON_MAX_ARGS])
 int mon_cmd_help(int argc, char *args[])
 {
     for (unsigned int cmd_idx = 0; cmd_idx < sizeof(mon_cmds)/sizeof(*mon_cmds); cmd_idx++) {
-        printf("%s\n\r", mon_cmds[cmd_idx].name);
+        if (!mon_cmds[cmd_idx].description)
+            continue;
+        printf("%s", mon_cmds[cmd_idx].name);
+        if (mon_cmds[cmd_idx].argument)
+            printf(" %s", mon_cmds[cmd_idx].argument);
+        printf("\n\r    %s\n\r", mon_cmds[cmd_idx].description);
     }
     return MON_CMD_OK;
 }
@@ -750,8 +864,8 @@ int mon_cmd_step(int argc, char *args[])
 
 int mon_cmd_status(int argc, char *args[])
 {
-    uint16_t sp = z80_context.sp;
-    uint16_t pc = z80_context.pc;
+    uint16_t sp = z80_context.w.sp;
+    uint16_t pc = z80_context.w.pc;
 
     mon_show_registers();
 
@@ -909,6 +1023,30 @@ int mon_cmd_set(int argc, char *args[])
     return MON_CMD_OK;
 }
 
+int mon_cmd_write(int argc, char *args[])
+{
+    uint32_t addr = mon_cur_addr;
+    uint8_t val;
+
+    if (args[0] != NULL && *args[0] != '\0')
+        addr = mon_strtoval(args[0]);
+    if (args[1] == NULL || *args[1] == '\0') {
+        printf("write [addr],val\n\r");
+        return MON_CMD_OK;
+    }
+
+    val = (uint8_t)mon_strtoval(args[1]);
+    dma_write_to_sram(addr, &val, 1);
+    addr++;
+    while (mon_chartoval(NULL, &val)) {
+        dma_write_to_sram(addr, &val, 1);
+        addr++;
+    }
+    mon_cur_addr = addr;
+
+    return MON_CMD_OK;
+}
+
 int mon_prompt(void)
 {
     char line[48];
@@ -955,38 +1093,27 @@ void mon_leave(void)
 {
     // printf("Leave monitor\n\r");
 
-    uint16_t pc = z80_context.pc;
-    uint16_t sp = z80_context.sp;
-    const unsigned int size = sizeof(z80_context.saved_prog);
+    reinstall_trampoline();
 
-    // Rewind PC on the NMI stack by 2 bytes
-    pc -= size;
-    write_mcu_mem_w(tmp_buf[0], pc);
-    dma_write_to_sram(phys_addr(sp), tmp_buf[0], 2);
+    // restore bank pins
+    set_bank_pins((uint32_t)mmu_bank << 16);
 
-    // Save original program
-    dma_read_from_sram(phys_addr(pc), &z80_context.saved_prog, size);
-
-    // Insert 'OUT (MON_CLEANUP), A'
-    memset(tmp_buf[0], 0, size);  // Fill with NOP
-    tmp_buf[0][0] = 0xd3;
-    tmp_buf[0][1] = MON_CLEANUP;
-    dma_write_to_sram(phys_addr(pc), tmp_buf[0], size);
-
-    // Clear NMI
-    mcp23s08_write(MCP23S08_ctx, GPIO_NMI, 1);
+    set_nmi_pin(1);
 }
 
 void mon_cleanup(void)
 {
     // printf("\n\rCleanup monitor\n\r");
 
-    // Restore original program
-    const unsigned int size = sizeof(z80_context.saved_prog);
-    uint16_t pc = z80_context.pc - size;
-    dma_write_to_sram(phys_addr(pc), &z80_context.saved_prog, size);
-    uninstall_nmi_hook();
-    uninstall_rst_hook();
+    uninstall_trampoline();
+    uninstall_nmi_vector();
+
+    if (z80_context.w.cleanup_code_location == 0x0000) {
+        // Use modified RST 08h vector to return to original NMI return addess
+        install_rst_vector(mmu_bank);
+        static const char return_instruction[] = { 0xc9 };  // Z80 RET instruction
+        __write_to_sram(phys_addr(0x000b), return_instruction, sizeof(return_instruction));
+    }
 
     if (mon_step_execution) {
         invoke_monitor = 1;

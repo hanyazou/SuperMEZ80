@@ -1,5 +1,5 @@
 ;
-;	SuperMEZ80+SPI NMI monitor
+;	SuperMEZ80 CP/M dummy loop
 ;
 ;	Copyright (C) 2023 by Hanyazou
 ;
@@ -23,41 +23,15 @@
 ; WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 ; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 ; OTHER DEALINGS IN THE SOFTWARE.
-;
-	ORG	0
+
 ;
 ;	I/O ports
 ;
-CONDAT	EQU	1		; console output port
-;
-	DEFS	08H - $, 0	; NOP
-	ORG	0008H		; RST 08H interrupt vector
+TGTINV_TRAP	EQU	173	; return from target CPU invocation
+
+	ORG	0000h
 ENTRY:
-	OUT	(173),A		; RST08 trap
-	NOP
-
-	LD	(SAVED_REG_SP),SP
-	LD	SP,SAVED_REG_SP
-	push	AF
-	push	BC
-	push	DE
-	push	HL
-	push	IX
-	push	IY
-
-	OUT	(174),A		; enter RST08 monitor
-
-	pop	IY
-	pop	IX
-	pop	HL
-	pop	DE
-	pop	BC
-	pop	AF
-	LD	SP,(SAVED_REG_SP)
-	RETI
-;
-	DEFS	12, 0
-SAVED_REG_SP:
-	DEFW	0
-;
-	END
+	LD A,0
+	OUT (TGTINV_TRAP),A
+	HALT
+        JR ENTRY

@@ -26,6 +26,8 @@
 
 #include <supermez80.h>
 #include <stdio.h>
+#include <assert.h>
+
 #include <ff.h>
 #include <utils.h>
 
@@ -48,7 +50,7 @@ drive_t drives[] = {
     { 16484 },
 };
 const int num_drives = (sizeof(drives)/sizeof(*drives));
-unsigned int io_output_chars = 0;
+static int io_stat_ = IO_STAT_INVALID;
 
 // hardware control
 static uint8_t hw_ctrl_lock = HW_CTRL_LOCKED;
@@ -63,8 +65,19 @@ static unsigned int con_output_buffer_head = 0;
 
 static uint8_t disk_buf[SECTOR_SIZE];
 
+void io_init(void) {
+    io_stat_ = IO_STAT_NOT_STARTED;
+}
+
+int io_stat(void) {
+    return io_stat_;
+}
+
+static void con_flush_buffer(void);
+
 // UART3 Transmit
 void putch(char c) {
+    con_flush_buffer();
     while(!U3TXIF);             // Wait or Tx interrupt flag set
     U3TXB = c;                  // Write data
 }
@@ -76,7 +89,7 @@ int getch(void) {
 }
 
 // Shall be called with disabling the interrupt
-void __con_flush_buffer(void) {
+static void __con_flush_buffer(void) {
     while (0 < con_output && U3TXIF) {
         U3TXB = con_output_buffer[con_output_buffer_head];
         con_output_buffer_head = ((con_output_buffer_head + 1) % sizeof(con_output_buffer));
@@ -84,7 +97,7 @@ void __con_flush_buffer(void) {
     }
 }
 
-void con_flush_buffer(void) {
+static void con_flush_buffer(void) {
     while (0 < con_output)
         __delay_ms(50);
 }
@@ -252,7 +265,7 @@ void try_to_invoke_monitor(void) {
         printf("\n\rAttempts to become a bassmaster ...\n\r");
         #endif
 
-        if (CLC3IF) {           // Check /IORQ
+        if (board_io_event()) { // Check /IORQ
             #ifdef CPM_MON_DEBUG
             printf("/IORQ is active\n\r");
             #endif
@@ -260,11 +273,11 @@ void try_to_invoke_monitor(void) {
             return;
         }
 
-        LATE0 = 0;              // set /BUSREQ to active
+        set_busrq_pin(0);       // set /BUSREQ to active
         __delay_us(20);         // Wait a while for Z80 to release the bus
-        if (CLC3IF) {           // Check /IORQ again
+        if (board_io_event()) { // Check /IORQ again
             // Withdraw /BUSREQ and let I/O handler to handle the break key if /IORQ is detected
-            LATE0 = 1;
+            set_busrq_pin(1);
             #ifdef CPM_MON_DEBUG
             printf("Withdraw /BUSREQ because /IORQ is active\n\r");
             #endif
@@ -275,8 +288,10 @@ void try_to_invoke_monitor(void) {
         bus_master(1);
         mon_setup();            // Hook NMI handler and assert /NMI
         bus_master(0);
-        LATE0 = 1;              // Clear /BUSREQ so that the Z80 can handle NMI
+        set_busrq_pin(1);       // Clear /BUSREQ so that the Z80 can handle NMI
 }
+
+static uint8_t disk_stat = DISK_ST_ERROR;
 
 void io_handle() {
     static uint8_t disk_drive = 0;
@@ -285,59 +300,61 @@ void io_handle() {
     static uint8_t disk_op = 0;
     static uint8_t disk_dmal = 0;
     static uint8_t disk_dmah = 0;
-    static uint8_t disk_stat = DISK_ST_ERROR;
     static uint8_t *disk_datap = NULL;
+    static unsigned int prev_output_chars = 0;
+    static unsigned int io_output_chars = 0;
     uint8_t c;
 
     try_to_invoke_monitor();
 
-    if (!CLC3IF)                // Nothing to do and just return if no IO access is occurring
+    if (!board_io_event())        // Nothing to do and just return if no IO access is occurring
         return;
 
     int do_bus_master = 0;
-    uint8_t io_addr = PORTB;
-    uint8_t io_data = PORTC;
+    uint8_t io_addr = addr_l_pins();
+    uint8_t io_data = data_pins();
 
-    if (RA5) {
+    if (rd_pin()) {
+        io_stat_ = IO_STAT_WRITE_WAITING;
         goto io_write;
     }
 
+    io_stat_ = IO_STAT_READ_WAITING;
+
     // Z80 IO read cycle
-    TRISC = 0x00;               // Set as output
+    set_data_dir(0x00);           // Set as output
     switch (io_addr) {
     case UART_CREG:
         if (key_input) {
-            LATC = 0xff;        // input available
+            set_data_pins(0xff);  // input available
         } else {
-            LATC = 0x00;        // no input available
+            set_data_pins(0x00);  // no input available
         }
         break;
     case UART_DREG:
         con_flush_buffer();
         c = getch_buffered();
-        LATC = c;               // Out the character
+        set_data_pins(c);         // Out the character
         break;
     case DISK_REG_DATA:
         if (disk_datap && (disk_datap - disk_buf) < SECTOR_SIZE) {
-            LATC = *disk_datap++;
+            set_data_pins(*disk_datap++);
         } else
         if (DEBUG_DISK) {
-            printf("DISK: OP=%02x D/T/S=%d/%3d/%3d            ADDR=%02x%02x (READ IGNORED)\n\r",
-                   disk_op, disk_drive, disk_track, disk_sector, disk_dmah, disk_dmal);
+            printf("DISK: OP=%02x D/T/S=%d/%3d/%3d            ADDR=%01x%02x%02x (RD IGNORED)\n\r",
+                   disk_op, disk_drive, disk_track, disk_sector, mmu_bank, disk_dmah, disk_dmal);
         }
         break;
     case DISK_REG_FDCST:
-        LATC = disk_stat;
+        set_data_pins(disk_stat);
         break;
     case HW_CTRL:
-        LATC = hw_ctrl_read();
+        set_data_pins(hw_ctrl_read());
         break;
     default:
-        #ifdef CPM_IO_DEBUG
         printf("WARNING: unknown I/O read %d (%02XH)\n\r", io_addr, io_addr);
         invoke_monitor = 1;
-        #endif
-        LATC = 0xff;            // Invalid data
+        set_data_pins(0xff);    // Invalid data
         break;
     }
 
@@ -348,11 +365,11 @@ void io_handle() {
     }
 
     // Let Z80 read the data
-    LATE0 = 0;                  // /BUSREQ is active
-    G3POL = 1;                  // Release wait (D-FF reset)
-    G3POL = 0;
-    while(!RA0);                // /IORQ
-    TRISC = 0xff;               // Set as input
+    set_busrq_pin(0);           // /BUSREQ is active
+    board_clear_io_event();     // Clear interrupt flag
+    set_wait_pin(1);            // Release wait
+    while(!ioreq_pin());        // wait for /IORQ to be cleared
+    set_data_dir(0xff);         // Set as input
 
     if (invoke_monitor) {
         goto enter_bus_master;
@@ -373,11 +390,10 @@ void io_handle() {
             if (DISK_OP_WRITE == DISK_OP_WRITE && (disk_datap - disk_buf) == SECTOR_SIZE) {
                 do_bus_master = 1;
             }
-        } else {
-            if (DEBUG_DISK) {
-                printf("DISK: OP=%02x D/T/S=%d/%3d/%3d            ADDR=%02x%02x (IGNORED)\n\r",
-                       disk_op, disk_drive, disk_track, disk_sector, disk_dmah, disk_dmal);
-            }
+        } else
+        if (DEBUG_DISK) {
+            printf("DISK: OP=%02x D/T/S=%d/%3d/%3d            ADDR=%01x%02x%02x (WR IGNORED)\n\r",
+                   disk_op, disk_drive, disk_track, disk_sector, mmu_bank, disk_dmah, disk_dmal);
         }
         break;
     case DISK_REG_DRIVE:
@@ -401,9 +417,10 @@ void io_handle() {
         }
         if ((DEBUG_DISK_READ  && (disk_op == DISK_OP_DMA_READ  || disk_op == DISK_OP_READ )) ||
             (DEBUG_DISK_WRITE && (disk_op == DISK_OP_DMA_WRITE || disk_op == DISK_OP_WRITE))) {
-            if (DEBUG_DISK_VERBOSE) {
-                printf("DISK: OP=%02x D/T/S=%d/%3d/%3d            ADDR=%02x%02x ... \n\r", disk_op,
-                       disk_drive, disk_track, disk_sector, disk_dmah, disk_dmal);
+            if (DEBUG_DISK_VERBOSE && !(debug.disk_mask & (1 << disk_drive))) {
+                printf("DISK: OP=%02x D/T/S=%d/%3d/%3d            ADDR=%01x%02x%02x ... \n\r",
+                       disk_op, disk_drive, disk_track, disk_sector,
+                       mmu_bank, disk_dmah, disk_dmal);
             }
         }
         break;
@@ -420,29 +437,27 @@ void io_handle() {
     case HW_CTRL:
         hw_ctrl_write(io_data);
         break;
-    case MON_NMI_PREP:
-    case MON_NMI_ENTER:
-    case MON_RST08_PREP:
-    case MON_RST08_ENTER:
+    case MON_PREPARE:
+    case MON_ENTER:
     case MON_CLEANUP:
         do_bus_master = 1;
         break;
     default:
-        #ifdef CPM_IO_DEBUG
         printf("WARNING: unknown I/O write %d, %d (%02XH, %02XH)\n\r", io_addr, io_data, io_addr,
                io_data);
         invoke_monitor = 1;
-        #endif
         break;
     }
 
     //
     // Assert /BUSREQ and release /WAIT
     //
-    LATE0 = 0;          // /BUSREQ is active
-    G3POL = 1;          // Release wait (D-FF reset)
-    G3POL = 0;
-    while(!RA0);        // /IORQ
+    set_busrq_pin(0);           // /BUSREQ is active
+    board_clear_io_event();     // Clear interrupt flag
+    set_wait_pin(1);            // Release wait
+    while(!ioreq_pin());        // wait for /IORQ to be cleared
+
+    io_stat_ = IO_STAT_STOPPED;
 
     if (!do_bus_master && !invoke_monitor) {
         goto withdraw_busreq;
@@ -465,18 +480,27 @@ void io_handle() {
     case MMU_BANK_SEL:
         mmu_bank_select(io_data);
         goto exit_bus_master;
-    case MON_NMI_PREP:
-    case MON_RST08_PREP:
-        mon_prepare(io_addr == MON_NMI_PREP /* NMI or not*/);
+    case MON_PREPARE:
+        mon_prepare();
+        io_stat_ = IO_STAT_INTERRUPTED;
         goto exit_bus_master;
-    case MON_NMI_ENTER:
-    case MON_RST08_ENTER:
-        mon_enter(io_addr == MON_NMI_ENTER /* NMI or not*/);
+    case MON_ENTER:
+        io_stat_ = IO_STAT_INTERRUPTED;
+        // new line if some output from the target
+        if (prev_output_chars != io_output_chars) {
+            printf("\n\r");
+            prev_output_chars = io_output_chars;
+        }
+        mon_enter();
+        io_stat_ = IO_STAT_MONITOR;
         while (!mon_step_execution && mon_prompt() != MON_CMD_EXIT);
         mon_leave();
+        io_stat_ = IO_STAT_INTERRUPTED;
         goto exit_bus_master;
     case MON_CLEANUP:
+        io_stat_ = IO_STAT_INTERRUPTED;
         mon_cleanup();
+        io_stat_ = IO_STAT_STOPPED;
         goto exit_bus_master;
     }
 
@@ -518,6 +542,9 @@ void io_handle() {
             util_hexdump_sum("buf: ", disk_buf, SECTOR_SIZE);
         }
 
+        // Store disk I/O status here so that io_invoke_target_cpu() can return the status in it
+        disk_stat = DISK_ST_SUCCESS;
+
         if (disk_op == DISK_OP_DMA_READ) {
             //
             // DMA read
@@ -542,9 +569,6 @@ void io_handle() {
             // just set the read pointer to the heat of the buffer
             disk_datap = disk_buf;
         }
-
-        disk_stat = DISK_ST_SUCCESS;
-
     } else
     if (disk_op == DISK_OP_DMA_WRITE || disk_op == DISK_OP_WRITE) {
         //
@@ -593,9 +617,9 @@ void io_handle() {
     if (((DEBUG_DISK_READ  && (disk_op == DISK_OP_DMA_READ  || disk_op == DISK_OP_READ )) ||
          (DEBUG_DISK_WRITE && (disk_op == DISK_OP_DMA_WRITE || disk_op == DISK_OP_WRITE))) &&
         !(debug.disk_mask & (1 << disk_drive))) {
-        printf("DISK: OP=%02x D/T/S=%d/%3d/%3d x%3d=%5ld ADDR=%02x%02x ... ST=%02x\n\r", disk_op,
-               disk_drive, disk_track, disk_sector, drives[disk_drive].sectors, sector,
-               disk_dmah, disk_dmal, disk_stat);
+        printf("DISK: OP=%02x D/T/S=%d/%3d/%3d x%3d=%5ld ADDR=%01x%02x%02x ... ST=%02x\n\r",
+               disk_op, disk_drive, disk_track, disk_sector, drives[disk_drive].sectors, sector,
+               mmu_bank, disk_dmah, disk_dmal, disk_stat);
     }
 
     turn_on_io_led = 0;
@@ -606,9 +630,202 @@ void io_handle() {
         mon_setup();
     }
 
+    io_stat_ = IO_STAT_RESUMING;
     bus_master(0);
 
  withdraw_busreq:
-    CLC3IF = 0;             // Clear interrupt flag
-    LATE0 = 1;              // /BUSREQ is deactive
+    set_busrq_pin(1);       // /BUSREQ is deactive
+
+    io_stat_ = IO_STAT_RUNNING;
+}
+
+int io_wait_write(uint8_t wait_io_addr, uint8_t *result_io_data)
+{
+    int done = 0;
+    int result = -1;
+    uint8_t io_addr;
+    uint8_t io_data;
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: %3d      (%02XH     ) ...\n\r", __func__, wait_io_addr, wait_io_addr);
+    #endif
+
+    assert(io_stat() == IO_STAT_NOT_STARTED ||
+           io_stat() == IO_STAT_STOPPED || io_stat() == IO_STAT_INTERRUPTED ||
+           io_stat() == IO_STAT_PREPINVOKE || io_stat() == IO_STAT_MONITOR);
+
+    bus_master(0);
+    set_busrq_pin(1);       // /BUSREQ is deactive
+
+    while (1) {
+        // Wait for IO access
+        board_wait_io_event();
+        if (!board_io_event())
+            continue;
+
+        io_addr = addr_l_pins();
+        io_data = data_pins();
+
+        if (rd_pin() == 0 && io_addr == DISK_REG_FDCST) {
+            //
+            // This might be a dirty hack. But works well?
+            //
+            #ifdef CPM_IO_DEBUG
+            printf("%s: %3d      (%02XH     ) ... disk_stat=%02Xh\n\r", __func__,
+                   wait_io_addr, wait_io_addr, disk_stat);
+            #endif
+            // Let Z80 read the data
+            set_busrq_pin(0);           // Activate /BUSRQ
+            set_data_dir(0x00);         // Set as output
+            set_data_pins(disk_stat);
+            board_clear_io_event();     // Clear interrupt flag
+            set_wait_pin(1);            // Release /WAIT
+            while(!ioreq_pin());        // wait for /IORQ to be cleared
+            set_data_dir(0xff);         // Set as input
+            set_busrq_pin(1);           // Release /BUSRQ
+            continue;
+        }
+
+        if (rd_pin() == 0 || (io_addr != UART_DREG && io_addr != wait_io_addr)) {
+            // something wrong
+            printf("%s: ERROR: I/O %5s %3d, %3d (%02XH, %02XH) while waiting for %d (%02XH)\n\r",
+                   __func__, rd_pin() == 0 ? "read" : "write",
+                   io_addr, io_data, io_addr, io_data, wait_io_addr, wait_io_addr);
+            invoke_monitor = 1;
+            break;
+        }
+
+        if (io_addr == wait_io_addr) {
+            if (result_io_data)
+                *result_io_data = io_data;
+            result = 0;
+            break;
+        }
+
+        // write to UART_DREG
+        putch_buffered(io_data);
+        board_clear_io_event(); // Clear interrupt flag
+        set_wait_pin(1);        // Release wait
+    }
+
+    set_busrq_pin(0);           // /BUSREQ is active
+    board_clear_io_event();     // Clear interrupt flag
+    set_wait_pin(1);            // Release wait
+    while(!ioreq_pin());        // wait for /IORQ to be cleared
+    bus_master(1);
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: %3d, %3d (%02XH, %02XH) ... result=%d\n\r", __func__, io_addr, io_data,
+           io_addr, io_data,result);
+    #endif
+
+    return result;
+}
+
+void io_invoke_target_cpu_prepare(int *saved_status)
+{
+    static const unsigned char dummy_rom[] = {
+        // Dummy program, infinite HALT loop that do nothing
+        #include "dummy.inc"
+    };
+
+    assert(io_stat() == IO_STAT_NOT_STARTED ||
+           io_stat() == IO_STAT_STOPPED || io_stat() == IO_STAT_MONITOR);
+
+    *saved_status = io_stat();
+    if (io_stat() == IO_STAT_MONITOR) {
+        return;
+    }
+
+    if (io_stat() == IO_STAT_NOT_STARTED) {
+        // Start Z80 as DMA helper
+        bus_master(1);
+        __write_to_sram(bank_phys_addr(0, 0x00000), dummy_rom, sizeof(dummy_rom));
+        board_start_z80();
+        set_bank_pins(bank_phys_addr(0, 0x00000));
+        io_wait_write(TGTINV_TRAP, NULL);
+    }
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_setup()\n\r", __func__);
+    #endif
+    bus_master(1);
+    mon_setup();            // Hook NMI handler and assert /NMI
+
+    io_wait_write(MON_PREPARE, NULL);
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_prepare()\n\r", __func__);
+    #endif
+    mon_prepare();          // Install the trampoline code
+    io_wait_write(MON_ENTER, NULL);
+    io_stat_ = IO_STAT_PREPINVOKE;
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_enter()\n\r", __func__);
+    #endif
+    mon_enter();            // Now we can use the trampoline
+    io_stat_ = IO_STAT_MONITOR;
+
+    return;
+}
+
+int io_invoke_target_cpu(const param_block_t *inparams, unsigned int ninparams,
+                         const param_block_t *outparams, unsigned int noutparams, int bank)
+{
+    int i;
+    uint8_t result_data;
+
+    assert(io_stat() == IO_STAT_MONITOR);
+    mon_use_zeropage(bank);
+
+    for (i = 0; i < ninparams; i++) {
+        __write_to_sram(bank_phys_addr(bank, inparams[i].offs), inparams[i].addr,
+                        inparams[i].len);
+    }
+
+    // Run the code
+    io_wait_write(TGTINV_TRAP, &result_data);
+
+    for (i = 0; i < noutparams; i++) {
+        __read_from_sram(bank_phys_addr(bank, outparams[i].offs), outparams[i].addr,
+                         outparams[i].len);
+    }
+
+    return (int)(signed char)result_data;
+}
+
+void io_invoke_target_cpu_teardown(int *saved_status)
+{
+    if (*saved_status == IO_STAT_MONITOR || *saved_status == IO_STAT_INVALID) {
+        return;
+    }
+
+    assert(io_stat() == IO_STAT_MONITOR);
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_leave()\n\r", __func__);
+    #endif
+    mon_leave();
+    io_stat_ = IO_STAT_INTERRUPTED;
+
+    io_wait_write(MON_CLEANUP, NULL);
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_cleanup() ...\n\r", __func__);
+    #endif
+    mon_cleanup();
+
+    #ifdef CPM_IO_DEBUG
+    printf("%s: mon_cleanup() ... done\n\r", __func__);
+    #endif
+    io_stat_ = IO_STAT_STOPPED;
+
+    if (*saved_status == IO_STAT_NOT_STARTED) {
+        set_reset_pin(0);
+        bus_master(1);
+        io_stat_ = IO_STAT_NOT_STARTED;
+    }
+
+    *saved_status = IO_STAT_INVALID;  // fail safe
 }

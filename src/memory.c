@@ -4,9 +4,12 @@
  * Based on main.c by Tetsuya Suzuki and emuz80_z80ram.c by Satoshi Okue
  * Modified by @hanyazou https://twitter.com/hanyazou
  */
+
 #include <supermez80.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
+
 #include <mcp23s08.h>
 #include <utils.h>
 
@@ -22,16 +25,13 @@ void mem_init()
     unsigned int i;
     uint32_t addr;
 
-    set_bank_pins(0x00000);
-    #ifdef GPIO_BANK0
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_BANK0, MCP23S08_PINMODE_OUTPUT);
-    #endif
-    #ifdef GPIO_BANK1
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_BANK1, MCP23S08_PINMODE_OUTPUT);
-    #endif
-    #ifdef GPIO_BANK2
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_BANK2, MCP23S08_PINMODE_OUTPUT);
-    #endif
+#ifdef NO_MEMORY_CHECK
+    mmu_mem_size = 0x40000;
+    mmu_num_banks = (int)(mmu_mem_size / 0x10000);
+    printf("Skipping memory test\r\n");
+    printf("Memory XXX, %06lXH %d KB\r\n", addr, (int)(mmu_mem_size / 1024));
+    return;
+#endif
 
 #ifdef CPM_MMU_EXERCISE
     mmu_mem_size = 0x80000;
@@ -47,7 +47,11 @@ void mem_init()
         tmp_buf[0][i + 1] = 0x5a;
     }
     for (addr = 0; addr < MAX_MEM_SIZE; addr += MEM_CHECK_UNIT) {
+        #ifdef CPM_MMU_DEBUG
+        printf("Memory %06lXH\r\n", addr);
+        #else
         printf("Memory 000000 - %06lXH\r", addr);
+        #endif
         tmp_buf[0][0] = (addr >>  0) & 0xff;
         tmp_buf[0][1] = (addr >>  8) & 0xff;
         tmp_buf[0][2] = (addr >> 16) & 0xff;
@@ -56,8 +60,8 @@ void mem_init()
         if (memcmp(tmp_buf[0], tmp_buf[1], TMP_BUF_SIZE) != 0) {
             #ifdef CPM_MMU_DEBUG
             printf("\nMemory error at %06lXH\n\r", addr);
-            util_hexdump_sum(" write: ", tmp_buf[0], TMP_BUF_SIZE);
-            util_hexdump_sum("verify: ", tmp_buf[1], TMP_BUF_SIZE);
+            util_addrdump("WR: ", addr, tmp_buf[0], TMP_BUF_SIZE);
+            util_addrdump("RD: ", addr, tmp_buf[1], TMP_BUF_SIZE);
             #endif
             break;
         }
@@ -72,7 +76,11 @@ void mem_init()
     mmu_mem_size = addr;
     #ifdef CPM_MMU_DEBUG
     for (addr = 0; addr < mmu_mem_size; addr += MEM_CHECK_UNIT) {
+        #ifdef CPM_MMU_DEBUG
+        printf("Memory %06lXH\r\n", addr);
+        #else
         printf("Memory 000000 - %06lXH\r", addr);
+        #endif
         if (addr == 0 || (addr & 0xc000))
             continue;
         tmp_buf[0][0] = (addr >>  0) & 0xff;
@@ -82,8 +90,8 @@ void mem_init()
         dma_read_from_sram(addr, tmp_buf[1], TMP_BUF_SIZE);
         if (memcmp(tmp_buf[0], tmp_buf[1], TMP_BUF_SIZE) != 0) {
             printf("\nMemory error at %06lXH\n\r", addr);
-            util_hexdump_sum(" canon: ", tmp_buf[0], TMP_BUF_SIZE);
-            util_hexdump_sum("  read: ", tmp_buf[1], TMP_BUF_SIZE);
+            util_addrdump("CA: ", addr, tmp_buf[0], TMP_BUF_SIZE);
+            util_addrdump("RD: ", addr, tmp_buf[1], TMP_BUF_SIZE);
             while (1);
         }
     }
@@ -97,8 +105,8 @@ void mem_init()
         dma_read_from_sram(0x0c000, tmp_buf[0], TMP_BUF_SIZE);
         if (memcmp(tmp_buf[0], tmp_buf[1], TMP_BUF_SIZE) != 0) {
             printf("\nMemory error at %06lXH\n\r", addr);
-            util_hexdump_sum("expect: ", tmp_buf[1], TMP_BUF_SIZE);
-            util_hexdump_sum("  read: ", tmp_buf[0], TMP_BUF_SIZE);
+            util_addrdump("EX: ", 0x0c000, tmp_buf[1], TMP_BUF_SIZE);
+            util_addrdump("RD: ", 0x0c000, tmp_buf[0], TMP_BUF_SIZE);
             while (1);
         }
     }
@@ -109,155 +117,159 @@ void mem_init()
 #endif  // !CPM_MMU_EXERCISE
 }
 
-void set_bank_pins(uint32_t addr)
+#define memcpy_on_target_buf 0x80
+#define memcpy_on_target_buf_size 0x80
+static void __memcpy_on_target(uint16_t dest, uint16_t src, uint8_t *buf, unsigned int len,
+                               int bank)
 {
-    uint32_t mask = 0;
-    uint32_t val = 0;
+    static const unsigned char dma_helper_z80[] = {
+        #include "dma_helper.inc"
+    };
+    struct dma_helper_param {
+        uint16_t src_addr;
+        uint16_t dest_addr;
+        uint8_t length;
+    } params;
+    param_block_t param_blocks[3] = {
+        { (uint8_t *)dma_helper_z80, 0x0000, sizeof(dma_helper_z80) },
+        { (uint8_t *)&params, 0x0004, sizeof(params) },
+    };
 
-    #ifdef GPIO_BANK0
-    mask |= (1 << GPIO_BANK0);
-    if ((addr >> 16) & 1) {
-        val |= (1 << GPIO_BANK0);
-    }
+    #ifdef CPM_MEMCPY_DEBUG
+    printf("%22s: %04X to %04X, %u bytes\n\r", __func__, src, dest, len);
     #endif
-    #ifdef GPIO_BANK1
-    mask |= (1 << GPIO_BANK1);
-    if (!((addr >> 17) & 1)) {  // invert A17 to activate CE2 of TC551001
-        val |= (1 << GPIO_BANK1);
+
+    assert(sizeof(params) == 5);
+    assert(len <= 256);
+    params.src_addr = src;
+    params.dest_addr = dest;
+    params.length = (uint8_t)len;
+
+    if (src == memcpy_on_target_buf) {
+        param_blocks[2].addr = buf;
+        param_blocks[2].offs = src;
+        param_blocks[2].len = len;
+        io_invoke_target_cpu(param_blocks, 3, NULL, 0, bank);
+    } else {
+        param_blocks[2].addr = buf;
+        param_blocks[2].offs = dest;
+        param_blocks[2].len = len;
+        io_invoke_target_cpu(param_blocks, 2, &param_blocks[2], 1, bank);
     }
-    #endif
-    #ifdef GPIO_BANK2
-    mask |= (1 << GPIO_BANK2);
-    if ((addr >> 18) & 1) {
-        val |= (1 << GPIO_BANK2);
-    }
-    #endif
-    mcp23s08_masked_write(MCP23S08_ctx, mask, val);
 }
 
-void dma_acquire_addrbus(uint32_t addr)
+static void write_to_sram_low_addr(uint32_t dest, const void *buf, unsigned int len)
 {
-    static int no_mcp23s08_warn = 1;
+    uint16_t addr_gap_mask = ~board_low_addr_mask();
+    uint16_t addr = (uint16_t)(dest & 0xffff);
+    unsigned int n;
+    int saved_io_status;
+    int bank = phys_addr_bank(dest);
 
-    if (no_mcp23s08_warn && (addr & HIGH_ADDR_MASK) != 0) {
-        no_mcp23s08_warn = 0;
-        if (!mcp23s08_is_alive(MCP23S08_ctx)) {
-            printf("WARNING: no GPIO expander to control higher address\n\r");
-        }
+    #ifdef CPM_MEMCPY_DEBUG
+    printf("%22s: addr=  %04X, len=%4u\n\r", __func__, addr, len);
+    #endif
+
+    if (!(addr & addr_gap_mask || (addr + len - 1) & addr_gap_mask)) {
+        set_data_dir(0x00);     // Set as output to write to the SRAM
+        board_write_to_sram(addr, (uint8_t*)buf, len);
+        return;
     }
-    int pending = mcp23s08_set_pending(MCP23S08_ctx, 1);
-    #ifdef GPIO_LED
-    mcp23s08_write(MCP23S08_ctx, GPIO_LED, turn_on_io_len ? 0 : 1);
-    #endif
-    #ifdef GPIO_A13
-    mcp23s08_write(MCP23S08_ctx, GPIO_A13, ((addr >> 13) & 1));
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A13, MCP23S08_PINMODE_OUTPUT);
-    #endif
-    mcp23s08_write(MCP23S08_ctx, GPIO_A14, ((addr >> 14) & 1));
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A14, MCP23S08_PINMODE_OUTPUT);
-    mcp23s08_write(MCP23S08_ctx, GPIO_A15, ((addr >> 15) & 1));
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A15, MCP23S08_PINMODE_OUTPUT);
-
-    set_bank_pins(addr);
-    mcp23s08_set_pending(MCP23S08_ctx, pending);
-}
-
-void dma_release_addrbus(void)
-{
-    int pending = mcp23s08_set_pending(MCP23S08_ctx, 1);
-    #ifdef GPIO_A13
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A13, MCP23S08_PINMODE_INPUT);
-    #endif
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A14, MCP23S08_PINMODE_INPUT);
-    mcp23s08_pinmode(MCP23S08_ctx, GPIO_A15, MCP23S08_PINMODE_INPUT);
-
-    // higher address lines must always be driven by MCP23S08
-    set_bank_pins((uint32_t)mmu_bank << 16);
-
-    #ifdef GPIO_LED
-    mcp23s08_write(MCP23S08_ctx, GPIO_LED, turn_on_io_len ? 0 : 1);
-    #endif
-    mcp23s08_set_pending(MCP23S08_ctx, pending);
+    io_invoke_target_cpu_prepare(&saved_io_status);
+    while (0 < len) {
+        n = UTIL_MIN(memcpy_on_target_buf_size, len);
+        __memcpy_on_target(addr, memcpy_on_target_buf, (uint8_t*)buf, n, bank);
+        len -= n;
+        addr += n;
+        buf += n;
+    }
+    io_invoke_target_cpu_teardown(&saved_io_status);
 }
 
 void dma_write_to_sram(uint32_t dest, const void *buf, unsigned int len)
 {
-    uint16_t addr = (dest & LOW_ADDR_MASK);
+    uint32_t high_addr_mask = board_high_addr_mask();
+    uint16_t addr = (uint16_t)(dest & ~high_addr_mask);
     uint16_t second_half = 0;
-    unsigned int i;
-    union address_bus_u ab;
 
-    if ((uint32_t)LOW_ADDR_MASK + 1 < (uint32_t)addr + len)
-        second_half = (uint16_t)(((uint32_t)addr + len) - ((uint32_t)LOW_ADDR_MASK + 1));
+    #ifdef CPM_MEMCPY_DEBUG
+    printf("%22s: addr=%06lX, len=%4u\n\r", __func__, dest, len);
+    #endif
 
-    dma_acquire_addrbus(dest);
-    TRISC = 0x00;       // Set as output to write to the SRAM
-    ab.w = addr;
-    LATD = ab.h;
-    LATB = ab.l;
-    for(i = 0; i < len - second_half; i++) {
-        LATA2 = 0;      // activate /WE
-        LATC = ((uint8_t*)buf)[i];
-        LATA2 = 1;      // deactivate /WE
-        LATB = ++ab.l;
-        if (ab.l == 0) {
-            ab.h++;
-            LATD = ab.h;
-        }
+    if ((uint32_t)~high_addr_mask + 1 < (uint32_t)addr + len)
+        second_half = (uint16_t)(((uint32_t)addr + len) - ((uint32_t)~high_addr_mask + 1));
+
+    board_setup_addrbus(dest);
+    write_to_sram_low_addr(dest, (uint8_t*)buf, len - second_half);
+
+    if (0 < second_half) {
+        board_setup_addrbus(dest + len - second_half);
+        write_to_sram_low_addr(dest, &((uint8_t*)buf)[len - second_half], second_half);
     }
+}
 
-    if (0 < second_half)
-        dma_acquire_addrbus(dest + i);
-    for( ; i < len; i++) {
-        LATA2 = 0;      // activate /WE
-        LATC = ((uint8_t*)buf)[i];
-        LATA2 = 1;      // deactivate /WE
-        LATB = ++ab.l;
-        if (ab.l == 0) {
-            ab.h++;
-            LATD = ab.h;
-        }
+static void read_from_sram_low_addr(uint32_t src, void *buf, unsigned int len)
+{
+    uint16_t addr_gap_mask = ~board_low_addr_mask();
+    uint16_t addr = (uint16_t)(src & 0xffff);
+    unsigned int n;
+    int saved_io_status;
+    int bank = phys_addr_bank(src);
+
+    #ifdef CPM_MEMCPY_DEBUG
+    printf("%22s: addr=  %04X, len=%4u\n\r", __func__, addr, len);
+    #endif
+
+    if (!(addr & addr_gap_mask || (addr + len - 1) & addr_gap_mask)) {
+        set_data_dir(0xff);     // Set as input to read from the SRAM
+        board_read_from_sram(addr, (uint8_t*)buf, len);
+        return;
     }
+    io_invoke_target_cpu_prepare(&saved_io_status);
+    while (0 < len) {
+        n = UTIL_MIN(memcpy_on_target_buf_size, len);
+        __memcpy_on_target(memcpy_on_target_buf, addr, (uint8_t*)buf, n, bank);
+        len -= n;
+        addr += n;
+        buf += n;
+    }
+    io_invoke_target_cpu_teardown(&saved_io_status);
 }
 
 void dma_read_from_sram(uint32_t src, void *buf, unsigned int len)
 {
-    uint16_t addr = (src & LOW_ADDR_MASK);
+    uint32_t high_addr_mask = board_high_addr_mask();
+    uint16_t addr = (uint16_t)(src & ~high_addr_mask);
     uint16_t second_half = 0;
-    unsigned int i;
-    union address_bus_u ab;
 
-    if ((uint32_t)LOW_ADDR_MASK + 1 < (uint32_t)addr + len)
-        second_half = (uint16_t)(((uint32_t)addr + len) - ((uint32_t)LOW_ADDR_MASK + 1));
+    #ifdef CPM_MEMCPY_DEBUG
+    printf("%22s: addr=%06lX, len=%4u\n\r", __func__, src, len);
+    #endif
 
-    dma_acquire_addrbus(src);
-    TRISC = 0xff;       // Set as input to read from the SRAM
-    ab.w = addr;
-    LATD = ab.h;
-    LATB = ab.l;
-    for(i = 0; i < len - second_half; i++) {
-        LATA4 = 0;      // activate /OE
-        ((uint8_t*)buf)[i] = PORTC;
-        LATA4 = 1;      // deactivate /OE
-        LATB = ++ab.l;
-        if (ab.l == 0) {
-            ab.h++;
-            LATD = ab.h;
-        }
+    if ((uint32_t)~high_addr_mask + 1 < (uint32_t)addr + len)
+        second_half = (uint16_t)(((uint32_t)addr + len) - ((uint32_t)~high_addr_mask + 1));
+
+    board_setup_addrbus(src);
+    read_from_sram_low_addr(src, (uint8_t*)buf, len - second_half);
+
+    if (0 < second_half) {
+        board_setup_addrbus(src + len - second_half);
+        read_from_sram_low_addr(src, &((uint8_t*)buf)[len - second_half], second_half);
     }
+}
 
-    if (0 < second_half)
-        dma_acquire_addrbus(src + i);
-    for( ; i < len; i++) {
-        LATA4 = 0;      // activate /OE
-        ((uint8_t*)buf)[i] = PORTC;
-        LATA4 = 1;      // deactivate /OE
-        LATB = ++ab.l;
-        if (ab.l == 0) {
-            ab.h++;
-            LATD = ab.h;
-        }
-    }
+void __write_to_sram(uint32_t dest, const void *buf, unsigned int len)
+{
+    board_setup_addrbus(dest);
+    set_data_dir(0x00);     // Set as output to write to the SRAM
+    board_write_to_sram(dest & 0xffff, (uint8_t*)buf, len);
+}
+
+void __read_from_sram(uint32_t src, const void *buf, unsigned int len)
+{
+    board_setup_addrbus(src);
+    set_data_dir(0xff);     // Set as input to read from the SRAM
+    board_read_from_sram(src & 0xffff, (uint8_t*)buf, len);
 }
 
 void mmu_bank_config(int nbanks)
@@ -279,8 +291,15 @@ void mmu_bank_select(int bank)
     if (mmu_bank == bank)
         return;
     if (mmu_num_banks <= bank) {
-        printf("ERROR: bank %d is not available.\n\r", bank);
-        invoke_monitor = 1;
+        static unsigned char first_time = 1;
+        #if !defined(CPM_MMU_DEBUG)
+        if (first_time)
+        #endif
+        {
+            first_time = 0;
+            printf("ERROR: bank %d is not available.\n\r", bank);
+            invoke_monitor = 1;
+        }
     }
     if (mmu_bank_select_callback)
         (*mmu_bank_select_callback)(mmu_bank, bank);

@@ -1,5 +1,5 @@
 ;
-;	SuperMEZ80+SPI NMI monitor
+;	SuperMEZ80 CP/M DMA helper
 ;
 ;	Copyright (C) 2023 by Hanyazou
 ;
@@ -23,53 +23,43 @@
 ; WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 ; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 ; OTHER DEALINGS IN THE SOFTWARE.
-;
-	ORG	0
+
 ;
 ;	I/O ports
 ;
-CONDAT	EQU	1		; console output port
+CONDAT		EQU	1	; console output port
+TGTINV_TRAP	EQU	173	; return from target CPU invocation
+
+	ORG	0000h
+TGTINV_GATE:
+	OUT (TGTINV_TRAP),A
+        JR ENTRY
+
+	ORG	0004h
+PARAMS:
+SRC_ADDR:
+	DEFW	0000h		; source address
+DEST_ADDR:
+	DEFW	0000h		; destination address
+LENGTH:
+	DEFB	00h		; number of bytes to copy
+
 ;
-	DEFS	66H - $, 0	; NOP
-	ORG	0066H		; NMI interrupt vector
+;	DMA helper entry
+;
 ENTRY:
-	OUT	(171),A		; NMI trap
-	NOP
+	LD	HL,(SRC_ADDR)
+	LD	DE,(DEST_ADDR)
+	LD	A,(LENGTH)
+	LD	B,A
+LOOP:
+	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	DE
+	DJNZ	LOOP
 
-	LD	(SAVED_REG_SP),SP
-	LD	SP,SAVED_REG_END-2
-	push	AF
-	push	BC
-	push	DE
-	push	HL
-	push	IX
-	push	IY
-
-	OUT	(172),A		; enter NMI monitor
-
-	pop	IY
-	pop	IX
-	pop	HL
-	pop	DE
-	pop	BC
-	pop	AF
-	LD	SP,(SAVED_REG_SP)
-	RETN
-;
-SAVED_REG_IY:
-	DEFW	0
-SAVED_REG_IX:
-	DEFW	0
-SAVED_REG_HL:
-	DEFW	0
-SAVED_REG_DE:
-	DEFW	0
-SAVED_REG_BC:
-	DEFW	0
-SAVED_REG_AF:
-	DEFW	0
-SAVED_REG_SP:
-	DEFW	0
-SAVED_REG_END:
+	LD	A,0		; return value
+	JR	TGTINV_GATE
 ;
 	END
