@@ -2,6 +2,7 @@ PROGPORT := /dev/tty.usbmodem1444301
 CONSPORT := /dev/cu.usbserial-144440
 BOARD := SUPERMEZ80_SPI
 #BOARD := SUPERMEZ80_CPM
+#BOARD := EMUZ80_57Q
 DEFS += -DSUPERMEZ80_CPM_MMU
 #DEFS += -DCPM_MMU_EXERCISE
 #DEFS += -DNO_MEMORY_CHECK
@@ -39,6 +40,9 @@ SRCS += $(SRC_DIR)/boards/supermez80_spi_ioexp.c
 endif
 ifeq ($(BOARD),SUPERMEZ80_CPM)
 SRCS += $(SRC_DIR)/boards/supermez80_cpm.c
+endif
+ifeq ($(BOARD),EMUZ80_57Q)
+SRCS += $(SRC_DIR)/boards/emuz80_57q.c
 endif
 
 INCS :=-I$(SRC_DIR) -I$(DRIVERS_DIR) -I$(FATFS_DIR)/source -I$(BUILD_DIR)
