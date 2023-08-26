@@ -42,6 +42,12 @@ static void emuz80_common_sys_init()
     ANSELE1 = 0;
     ANSELE2 = 0;
 
+    ANSEL(Z80_ADDR_L) = 0x00;
+    ANSEL(Z80_DATA) = 0x00;
+    #ifdef Z80_ADDR_H
+    ANSEL(Z80_ADDR_H) = 0x00;
+    #endif
+
     // RESET output pin
     LAT(Z80_RESET) = 0;         // Reset
     TRIS(Z80_RESET) = 0;        // Set as output
