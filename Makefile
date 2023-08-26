@@ -9,6 +9,9 @@ DEFS += -DNO_MON_BREAKPOINT
 DEFS += -DNO_MON_STEP
 
 PIC := 18F47Q43
+#PIC := 18F47Q83
+#PIC := 18F47Q84
+#PIC := 18F57Q43
 XC8 := /Applications/microchip/xc8/v2.40/bin/xc8
 XC8_OPTS := --chip=$(PIC) --std=c99
 #XC8 := /Applications/microchip/xc8/v2.40/bin/xc8-cc

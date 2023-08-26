@@ -23,6 +23,10 @@
 
 #ifdef INCLUDE_PIC_PRAGMA
 
+#if defined _18F47Q83 || defined _18F47Q84
+#define _18F47Q8X
+#endif
+
 // CONFIG1
 #pragma config FEXTOSC = OFF    // External Oscillator Selection (Oscillator not enabled)
 #pragma config RSTOSC = HFINTOSC_64MHZ// Reset Oscillator Selection (HFINTOSC with HFFRQ = 64 MHz and CDIV = 1:1)
@@ -32,7 +36,7 @@
 #pragma config PR1WAY = ON      // PRLOCKED One-Way Set Enable bit (PRLOCKED bit can be cleared and set only once)
 #pragma config CSWEN = ON       // Clock Switch Enable bit (Writing to NOSC and NDIV is allowed)
 #pragma config FCMEN = ON       // Fail-Safe Clock Monitor Enable bit (Fail-Safe Clock Monitor enabled)
-#ifndef _18F47Q43
+#ifdef _18F47Q8X
 #pragma config JTAGEN = OFF
 #pragma config FCMENP = OFF
 #pragma config FCMENS = OFF
@@ -77,7 +81,7 @@
 #pragma config WRTSAF = OFF     // SAF Write protection bit (SAF not Write Protected)
 #pragma config WRTAPP = OFF     // Application Block write protection bit (Application Block not write protected)
 
-#ifndef _18F47Q43
+#ifdef _18F47Q8X
 // CONFIG9
 #pragma config BOOTPINSEL = RC5 // CRC on boot output pin selection (CRC on boot output pin is RC5)
 #pragma config BPEN = OFF       // CRC on boot output pin enable bit (CRC on boot output pin disabled)
@@ -87,7 +91,7 @@
 // CONFIG10
 #pragma config CP = OFF         // PFM and Data EEPROM Code Protection bit (PFM and Data EEPROM code protection disabled)
 
-#ifndef _18F47Q43
+#ifdef _18F47Q8X
 // CONFIG11
 #pragma config BOOTSCEN = OFF   // CRC on boot scan enable for boot area (CRC on boot will not include the boot area of program memory in its calculation)
 #pragma config BOOTCOE = HALT   // CRC on boot Continue on Error for boot areas bit (CRC on boot will stop device if error is detected in boot areas)
