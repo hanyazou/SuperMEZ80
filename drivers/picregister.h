@@ -34,6 +34,7 @@
 #define PORT_NAME(port) PORT_CAT(PORTNAME_, port)
 #define PORT_BIT(port) PORT_CAT(PORTBIT_, port)
 
+#define ANSEL(port) PORT_CAT(ANSEL, port)
 #define TRIS(port) PORT_CAT(TRIS, port)
 #define LAT(port) PORT_CAT(LAT, port)
 #define R(port) PORT_CAT(R, port)

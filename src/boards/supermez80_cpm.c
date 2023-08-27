@@ -72,6 +72,11 @@ static const int CLC_IN_HIGH = CLC_IN_PWM2S1P1_OUT;
 static const int CLC_IN_LOW = CLC_IN_PWM2S1P2_OUT;
 #endif
 
+static char *supermez80_cpm_name()
+{
+    return "SuperMEZ80-CPM";
+}
+
 static void supermez80_cpm_sys_init()
 {
     emuz80_common_sys_init();
@@ -327,6 +332,7 @@ void board_init()
 {
     emuz80_common_init();
 
+    board_name_hook = supermez80_cpm_name;
     board_sys_init_hook = supermez80_cpm_sys_init;
     board_bus_master_hook = supermez80_cpm_bus_master;
     board_start_z80_hook = supermez80_cpm_start_z80;

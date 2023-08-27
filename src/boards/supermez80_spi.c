@@ -96,6 +96,15 @@
 
 #include "emuz80_common.c"
 
+static char *supermez80_spi_name()
+{
+    if (mcp23s08_is_alive(MCP23S08_ctx)) {
+        return "SuperMEZ80+SPI with GPIO expander";
+    } else {
+        return "SuperMEZ80+SPI";
+    }
+}
+
 static void supermez80_spi_sys_init()
 {
     emuz80_common_sys_init();
@@ -127,9 +136,8 @@ static void supermez80_spi_sys_init()
     //
     // Initialize SPI I/O expander MCP23S08
     //
-    if (mcp23s08_probe(MCP23S08_ctx, SPI_CLOCK_2MHZ, 0 /* address */) == 0) {
-        printf("SuperMEZ80+SPI with GPIO expander\n\r");
-    }
+    mcp23s08_probe(MCP23S08_ctx, SPI_CLOCK_2MHZ, 0 /* address */);
+
     mcp23s08_write(MCP23S08_ctx, GPIO_CS0, 1);
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_CS0, MCP23S08_PINMODE_OUTPUT);
     #ifdef GPIO_CS1
@@ -392,6 +400,7 @@ void board_init()
 {
     emuz80_common_init();
 
+    board_name_hook = supermez80_spi_name;
     board_sys_init_hook = supermez80_spi_sys_init;
     board_bus_master_hook = supermez80_spi_bus_master;
     board_start_z80_hook = supermez80_spi_start_z80;

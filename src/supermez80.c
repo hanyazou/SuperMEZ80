@@ -67,6 +67,7 @@ void start_z80(void);
 void main(void)
 {
     sys_init();
+    printf("Board: %s\n\r", board_name());
     if (disk_init() < 0)
         while (1);
     io_init();
