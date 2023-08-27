@@ -23,6 +23,7 @@
 
 #include <supermez80.h>
 
+char *(*board_name_hook)(void) = NULL;
 void (*board_sys_init_hook)(void) = NULL;
 void (*board_bus_master_hook)(int) = NULL;
 void (*board_start_z80_hook)(void) = NULL;

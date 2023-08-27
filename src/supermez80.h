@@ -200,6 +200,8 @@ extern void mmu_bank_select(int bank);
 
 // board
 extern void board_init(void);
+extern char *(*board_name_hook)(void);
+#define board_name() (*board_name_hook)()
 extern void (*board_sys_init_hook)(void);
 #define board_sys_init() (*board_sys_init_hook)()
 extern void (*board_bus_master_hook)(int enable);

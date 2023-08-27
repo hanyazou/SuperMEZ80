@@ -64,6 +64,11 @@
 
 #include "emuz80_common.c"
 
+static char *emuz80_57q_name()
+{
+    return "EMUZ80-57Q";
+}
+
 static void emuz80_57q_sys_init()
 {
     emuz80_common_sys_init();
@@ -218,6 +223,7 @@ void board_init()
 {
     emuz80_common_init();
 
+    board_name_hook = emuz80_57q_name;
     board_sys_init_hook = emuz80_57q_sys_init;
     board_bus_master_hook = emuz80_57q_bus_master;
     board_start_z80_hook = emuz80_57q_start_z80;
