@@ -25,8 +25,9 @@ PJ_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 FATFS_DIR := $(PJ_DIR)/../FatFs
 DRIVERS_DIR := $(PJ_DIR)/drivers
 SRC_DIR := $(PJ_DIR)/src
-BUILD_DIR := $(PJ_DIR)/build
+BUILD_DIR := $(PJ_DIR)/$(shell echo build.$(BOARD).$(PIC) | tr A-Z a-z)
 CPM2_DIR := $(PJ_DIR)/cpm2
+HEXFILE := $(shell echo $(BOARD)-$(PIC).hex | tr A-Z a-z)
 
 FATFS_SRCS := $(FATFS_DIR)/source/ff.c
 DISK_SRCS := \
@@ -59,11 +60,12 @@ HDRS := $(SRC_DIR)/supermez80.h $(SRC_DIR)/picconfig.h \
         $(DRIVERS_DIR)/mcp23s08.c \
         $(SRC_DIR)/boards/emuz80_common.c
 
-all: $(BUILD_DIR)/supermez80.hex $(BUILD_DIR)/drivea.dsk
+all: $(BUILD_DIR)/$(HEXFILE) $(BUILD_DIR)/drivea.dsk
 
-$(BUILD_DIR)/supermez80.hex: $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS)
+$(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS)
 	cd $(BUILD_DIR) && \
-        $(XC8) $(XC8_OPTS) $(DEFS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS)
+        $(XC8) $(XC8_OPTS) $(DEFS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
+        mv supermez80.hex $(HEXFILE)
 
 $(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
@@ -80,14 +82,14 @@ $(BUILD_DIR)/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
 	dd if=boot.bin of=drivea.dsk bs=128 seek=0  count=1 conv=notrunc; \
 	dd if=bios.bin of=drivea.dsk bs=128 seek=45 count=6 conv=notrunc
 
-upload: $(BUILD_DIR)/supermez80.hex
+upload: $(BUILD_DIR)/$(HEXFILE)
 	if [ .$(PP3_DIR) != . ]; then \
             echo using $(PP3_DIR)/pp3; \
             cd $(PP3_DIR); \
-            ./pp3 $(PP3_OPTS) $(BUILD_DIR)/supermez80.hex; \
+            ./pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE); \
         else \
             echo using `which pp3`; \
-            pp3 $(PP3_OPTS) $(BUILD_DIR)/supermez80.hex; \
+            pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE); \
         fi
 
 test::
@@ -101,5 +103,11 @@ test_repeat::
 test_time::
 	PORT=$(CONSPORT) test/measure_time.sh
 
+test_build::
+	make BOARD=SUPERMEZ80_SPI PIC=18F47Q43
+	make BOARD=SUPERMEZ80_CPM PIC=18F47Q43
+	make BOARD=EMUZ80_57Q     PIC=18F57Q43
+	ls -l build.*.*/*.hex
+
 clean::
-	rm -rf $(BUILD_DIR)
+	rm -rf $(PJ_DIR)/build.*.*
