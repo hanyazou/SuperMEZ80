@@ -263,19 +263,38 @@ void mon_init(void)
     mmu_bank_select_callback = bank_select_callback;
 }
 
-void mon_assert_nmi(void)
+void mon_assert_interrupt(void)
 {
-    set_nmi_pin(0);
+    if (is_board_nmi_available()) {
+        set_nmi_pin(0);
+    } else
+    if (is_board_int_available()) {
+        set_int_pin(0);
+    } else {
+        printf("%s: no interrupt pin\n\r", __func__);
+    }
 }
 
 void mon_setup(void)
 {
-    install_nmi_vector(mmu_bank);
-    mon_assert_nmi();
+    if (is_board_nmi_available()) {
+        install_nmi_vector(mmu_bank);
+    } else
+    if (is_board_int_available()) {
+        install_rst_vector(mmu_bank);
+        io_set_interrupt_data(0xcf);  // RST 08h instruction
+    }
+    mon_assert_interrupt();
 }
 
 void mon_prepare()
 {
+    if (is_board_nmi_available()) {
+        set_nmi_pin(1);
+    } else
+    if (is_board_int_available()) {
+        set_int_pin(1);
+    }
     install_trampoline(mmu_bank);
 }
 
@@ -1097,8 +1116,6 @@ void mon_leave(void)
 
     // restore bank pins
     set_bank_pins((uint32_t)mmu_bank << 16);
-
-    set_nmi_pin(1);
 }
 
 void mon_cleanup(void)
@@ -1109,7 +1126,7 @@ void mon_cleanup(void)
     uninstall_nmi_vector();
 
     if (z80_context.w.cleanup_code_location == 0x0000) {
-        // Use modified RST 08h vector to return to original NMI return addess
+        // Use modified RST 08h vector to return to original interrupt return addess
         install_rst_vector(mmu_bank);
         static const char return_instruction[] = { 0xc9 };  // Z80 RET instruction
         __write_to_sram(phys_addr(0x000b), return_instruction, sizeof(return_instruction));

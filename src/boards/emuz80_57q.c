@@ -53,7 +53,7 @@
 
 #define Z80_WR          C5
 #define Z80_RESET       E1
-#define Z80_NMI         E2
+#define Z80_INT         E2
 
 #define SRAM_CE         Z80_MEMRQ
 #define SRAM_OE         Z80_RD

@@ -77,6 +77,11 @@ static void emuz80_common_sys_init()
     TRIS(Z80_NMI) = 0;          // Set as output
     #endif
 
+    #ifdef Z80_INT
+    LAT(Z80_INT) = 1;           // deactivate INT
+    TRIS(Z80_INT) = 0;          // Set as output
+    #endif
+
     // Address bus A7-A0 pin
     LAT(Z80_ADDR_L) = 0x00;
     TRIS(Z80_ADDR_L) = 0x00;    // Set as output
@@ -297,8 +302,12 @@ static void emuz80_common_init()
     board_rd_pin_hook           = emuz80_common_rd_pin;
     board_set_busrq_pin_hook    = emuz80_common_set_busrq_pin;
     board_set_reset_pin_hook    = emuz80_common_set_reset_pin;
+    #ifdef Z80_NMI
     board_set_nmi_pin_hook      = emuz80_common_set_nmi_pin;
+    #endif
+    #ifdef Z80_INT
     board_set_int_pin_hook      = emuz80_common_set_int_pin;
+    #endif
     board_set_wait_pin_hook     = emuz80_common_set_wait_pin;
 }
 
