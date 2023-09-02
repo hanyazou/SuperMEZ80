@@ -82,7 +82,7 @@
 
 #define MON_CLEANUP      170    // AAh clean up monitor mode
 #define MON_PREPARE      171    // ABh prepare monitor mode
-#define MON_ENTER        172    // ACh clean up monitor mode
+#define MON_ENTER        172    // ACh enter monitor mode
 #define TGTINV_TRAP      173    // ADh return from target CPU invocation
 
 #define MMU_INVALID_BANK 0xff
