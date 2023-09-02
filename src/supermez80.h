@@ -82,7 +82,7 @@
 
 #define MON_CLEANUP      170    // AAh clean up monitor mode
 #define MON_PREPARE      171    // ABh prepare monitor mode
-#define MON_ENTER        172    // ACh clean up monitor mode
+#define MON_ENTER        172    // ACh enter monitor mode
 #define TGTINV_TRAP      173    // ADh return from target CPU invocation
 
 #define MMU_INVALID_BANK 0xff
@@ -139,6 +139,7 @@ enum {
     IO_STAT_NOT_STARTED   = 10,
     IO_STAT_RUNNING       = 20,
     IO_STAT_READ_WAITING  = 30,
+    IO_STAT_INTR_WAITING  = 35,
     IO_STAT_WRITE_WAITING = 40,
     IO_STAT_STOPPED       = 50,
     IO_STAT_RESUMING      = 60,
@@ -164,13 +165,14 @@ extern void io_invoke_target_cpu_prepare(int *saved_status);
 extern int io_invoke_target_cpu(const param_block_t *inparams, unsigned int ninparams,
                                 const param_block_t *outparams, unsigned int noutparams, int bank);
 extern void io_invoke_target_cpu_teardown(int *saved_status);
+extern void io_set_interrupt_data(uint8_t data);
 
 // monitor
 extern int invoke_monitor;
 extern unsigned int mon_step_execution;
 
 void mon_init(void);
-void mon_assert_nmi(void);
+void mon_assert_interrupt(void);
 void mon_setup(void);
 void mon_prepare(void);
 void mon_enter(void);
@@ -260,9 +262,11 @@ extern void (*board_set_reset_pin_hook)(uint8_t);
 // NMI   write olny
 extern void (*board_set_nmi_pin_hook)(uint8_t);
 #define set_nmi_pin(v) (*board_set_nmi_pin_hook)(v)
+#define is_board_nmi_available() (board_set_nmi_pin_hook != NULL)
 // INT   write olny
 extern void (*board_set_int_pin_hook)(uint8_t);
 #define set_int_pin(v) (*board_set_int_pin_hook)(v)
+#define is_board_int_available() (board_set_int_pin_hook != NULL)
 // WAIT  write olny
 extern void (*board_set_wait_pin_hook)(uint8_t);
 #define set_wait_pin(v) (*board_set_wait_pin_hook)(v)

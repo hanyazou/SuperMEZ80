@@ -38,11 +38,11 @@ DMAH    EQU	16		;dma-port: dma address high
 ;
 BOOT:
 	JP	COLD
-        DEFS	128 - $, 0
+HLOMSG:	DEFM	'CP/M boot-loader for Z80-Simulator'
+	DEFB	13,10,0
+	DEFS	128 - $, 0
 ;
 ERRMSG:	DEFM	'BOOT: error booting'
-	DEFB	13,10,0
-HLOMSG:	DEFM	'CP/M boot-loader for Z80-Simulator'
 	DEFB	13,10,0
 ;
 ;	begin the load operation
@@ -55,6 +55,9 @@ PRTMSG0:
 	INC	HL
 	OR	A
 	JP	NZ,PRTMSG0
+
+	IM	0		;select interrupt mode 0
+	EI			;eneble interrupt
 
 	LD	BC,1		;b=track 0, c=sector 1
 	LD	HL,BOOT		;base transfer address

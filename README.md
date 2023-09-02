@@ -127,10 +127,8 @@ https://github.com/udo-munk/z80pack
 | ---            | ---     | ---          | ---          | ---          | ---      | ---    | ---        |
 | SuperMEZ80-SPI | 512KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
 | SuperMEZ80-CPM | 256KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
-| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | n/a *1 | cpm-v2.1.0 |
+| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | ok     | cpm-v2.2.0 |
 | MEZ80SD        | 64KB    | available    | ok           | n/a          | n/a      | n/a    | cpm-v1.0.0 |
-
-*1) NMIのかわりにINTが接続されているので、PICのファームウェアで対応すればモニタを起動できるようになる可能性があります。
 
 ## 謝辞
 シンプルで美しいEMUZ80を開発された電脳伝説さんに感謝します。  

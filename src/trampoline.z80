@@ -139,6 +139,7 @@ UPDATE_CLEANUP_CODE:
 	POP	DE
 	POP	BC
 	POP	AF
+	EI
 RET_INST:
 	RETN			; return to RESTORE_SP because SP is pointing to FAKE_RET_ADDR
 

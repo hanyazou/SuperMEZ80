@@ -65,6 +65,10 @@ static unsigned int con_output_buffer_head = 0;
 
 static uint8_t disk_buf[SECTOR_SIZE];
 
+// the data fetched from CPU while the interrupt request/acknowledge cycle.
+// negative value means the cycle is not initiated.
+static int io_interrupt_data = -1;
+
 void io_init(void) {
     io_stat_ = IO_STAT_NOT_STARTED;
 }
@@ -314,6 +318,16 @@ void io_handle() {
     uint8_t io_addr = addr_l_pins();
     uint8_t io_data = data_pins();
 
+    if (0 <= io_interrupt_data) {
+        // it in the interrupt acknowledge cycle.
+        // send the data to the cpu.
+        io_stat_ = IO_STAT_INTR_WAITING;
+        set_data_dir(0x00);
+        set_data_pins(io_interrupt_data & 0xff);
+        io_interrupt_data = -1;
+        goto let_cpu_read_data;
+    }
+
     if (rd_pin()) {
         io_stat_ = IO_STAT_WRITE_WAITING;
         goto io_write;
@@ -361,9 +375,10 @@ void io_handle() {
     // Assert /NMI for invoking the monitor before releasing /WAIT.
     // You can use SPI bus because Z80 is in I/O read instruction and does not drive D0~7 here.
     if (invoke_monitor) {
-        mon_assert_nmi();
+        mon_assert_interrupt();
     }
 
+ let_cpu_read_data:
     // Let Z80 read the data
     set_busrq_pin(0);           // /BUSREQ is active
     board_clear_io_event();     // Clear interrupt flag
@@ -828,4 +843,9 @@ void io_invoke_target_cpu_teardown(int *saved_status)
     }
 
     *saved_status = IO_STAT_INVALID;  // fail safe
+}
+
+void io_set_interrupt_data(uint8_t data)
+{
+    io_interrupt_data = data;
 }
