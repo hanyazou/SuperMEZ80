@@ -93,15 +93,18 @@ upload: $(BUILD_DIR)/$(HEXFILE)
         fi
 
 test::
-	PORT=$(CONSPORT) test/test.sh
+	cd test && PORT=$(CONSPORT) ./test.sh
 
 test_repeat::
-	for i in $$(seq $(TEST_REPEAT)); do \
-          PORT=$(CONSPORT) test/test.sh || exit 1; \
+	cd test && for i in $$(seq $(TEST_REPEAT)); do \
+          PORT=$(CONSPORT) ./test.sh || exit 1; \
         done
 
 test_time::
-	PORT=$(CONSPORT) test/measure_time.sh
+	cd test && PORT=$(CONSPORT) ./measure_time.sh
+
+test_monitor::
+	cd test && PORT=$(CONSPORT) ./monitor.sh
 
 test_build::
 	make BOARD=SUPERMEZ80_SPI PIC=18F47Q43
