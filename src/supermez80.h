@@ -228,6 +228,15 @@ extern void (*board_wait_io_event_hook)(void);
 #define board_wait_io_event() (*board_wait_io_event_hook)()
 extern void (*board_clear_io_event_hook)(void);
 #define board_clear_io_event() (*board_clear_io_event_hook)()
+extern int (*board_clock_op_hook)(int clocks);
+#define board_clock_op(op) (*board_clock_op_hook)(op)
+#define is_board_clock_op_available() (board_clock_hook != NULL)
+#define BOARD_CLOCK_SUSPEND 0
+#define BOARD_CLOCK_RESUME -1
+#define BOARD_CLOCK_GET    -2
+#define BOARD_CLOCK_HIGH   -3
+#define BOARD_CLOCK_LOW    -4
+#define BOARD_CLOCK_INVERT -5
 
 // Address read and write
 extern uint8_t (*board_addr_l_pins_hook)(void);

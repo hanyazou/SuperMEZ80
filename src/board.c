@@ -36,6 +36,7 @@ void (*board_read_from_sram_hook)(uint16_t addr, uint8_t *buf, unsigned int len)
 __bit (*board_io_event_hook)(void) = NULL;
 void (*board_wait_io_event_hook)(void) = NULL;
 void (*board_clear_io_event_hook)(void) = NULL;
+int (*board_clock_op_hook)(int clocks) = NULL;
 
 uint8_t (*board_addr_l_pins_hook)(void) = NULL;
 void (*board_set_addr_l_pins_hook)(uint8_t) = NULL;
