@@ -1133,6 +1133,8 @@ void mon_cleanup(void)
             0xed, 0x4d   // RETI
         };  // Z80 RET instruction
         static const char retn[] = {
+            0x00,        // NOP      ; this is a dummy for EI in reti[] so that
+                         //          ; these two shall have same byte count
             0xed, 0x45   // RETN
         };  // Z80 RET instruction
 

@@ -516,6 +516,36 @@ void io_handle() {
         io_stat_ = IO_STAT_INTERRUPTED;
         mon_cleanup();
         io_stat_ = IO_STAT_STOPPED;
+
+        // mon_cleanup() will assert invoke_monitor while single step execution is enabled
+        if (invoke_monitor) {
+            // let the target CPU execute RETN/RETI before assert interrupt pin again.
+            // without this the next interrupt is triggered before returning current interrupt.
+
+            // suspend clock and release BUS
+            board_clock_op(BOARD_CLOCK_SUSPEND);
+            bus_master(0);
+            set_busrq_pin(1);       // /BUSREQ is deactive
+
+            // let the target CPU read some bytes from the memory
+            int rd = 1;
+            int fetch_count = 5;
+            while (0 < fetch_count) {
+                if (rd == 0 && rd_pin() == 1) {
+                    // end of a read cycle
+                    fetch_count--;
+                }
+                rd = rd_pin();
+                board_clock_op(BOARD_CLOCK_INVERT);
+            }
+
+            // acquire bus again
+            set_busrq_pin(0);       // /BUSREQ is active
+            board_clock_op(BOARD_CLOCK_RESUME);
+            __delay_us(100);        // this might not be needed because the target is faster enogh
+            bus_master(1);
+        }
+
         goto exit_bus_master;
     }
 
