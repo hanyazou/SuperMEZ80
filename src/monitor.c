@@ -427,6 +427,7 @@ int mon_cmd_continue(int argc, char *args[]);
 int mon_cmd_reset(int argc, char *args[]);
 int mon_cmd_set(int argc, char *args[]);
 int mon_cmd_write(int argc, char *args[]);
+int mon_cmd_jump(int argc, char *args[]);
 
 #define MON_MAX_ARGS 4
 #define MON_STR_ARG(n) (1 << (n))
@@ -459,6 +460,9 @@ static const struct {
     { "dump",           2, mon_cmd_dump,             0,
       "[addr][,length]",
       "Display data on the target memory" },
+    { "jump",           1, mon_cmd_jump,             0,
+      "[addr]",
+      "Jump to specified address and start execution " },
     { "reset",          0, mon_cmd_reset,            0,
       "Restart the system" },
     { "sdread",         2, mon_cmd_sdread,           0,
@@ -1068,6 +1072,20 @@ int mon_cmd_write(int argc, char *args[])
     mon_cur_addr = addr;
 
     return MON_CMD_OK;
+}
+
+int mon_cmd_jump(int argc, char *args[])
+{
+    uint32_t addr = mon_cur_addr;
+
+    if (args[0] != NULL && *args[0] != '\0')
+        addr = mon_strtoval(args[0]);
+
+    mmu_bank_select(phys_addr_bank(addr));
+    z80_context.w.pc = (uint16_t)addr;
+
+    // exit the monitor and execute instructions from specified address
+    return MON_CMD_EXIT;
 }
 
 int mon_prompt(void)
