@@ -176,6 +176,7 @@ void mon_assert_interrupt(void);
 void mon_setup(void);
 void mon_prepare(void);
 void mon_enter(void);
+void mon_start(void);
 int mon_prompt(void);
 void mon_use_zeropage(int bank);
 void mon_leave(void);

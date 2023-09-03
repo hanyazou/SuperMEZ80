@@ -298,12 +298,6 @@ void mon_prepare()
 
 void mon_enter()
 {
-    uint16_t stack_addr;
-
-    #ifdef CPM_MON_DEBUG
-    printf("Enter monitor\n\r");
-    #endif
-
     __read_from_sram(phys_addr(trampoline_work), &z80_context.w, sizeof(z80_context.w));
 
     if (z80_context.w.pc < 0x0100) {
@@ -312,6 +306,13 @@ void mon_enter()
     } else {
         z80_context.w.cleanup_code_location = 0x0000;
     }
+}
+
+void mon_start()
+{
+    #ifdef CPM_MON_DEBUG
+    printf("Start monitor\n\r");
+    #endif
 
     mon_cur_addr = z80_context.w.pc;
 
@@ -320,13 +321,13 @@ void mon_enter()
         mon_cur_addr = z80_context.w.pc;
 
         mon_show_registers();
-        __read_from_sram(phys_addr(mon_cur_addr), tmp_buf[0], 64);
+        dma_read_from_sram(phys_addr(mon_cur_addr), tmp_buf[0], 64);
         disas_ops(disas_z80, phys_addr(mon_cur_addr), tmp_buf[0], 64, 1, NULL);
     }
 
     if (!z80_context.w.nmi && mon_bp_installed && z80_context.w.pc == (mon_bp_addr & 0xffff) + 1) {
         printf("Break at %04X\n\r", (uint16_t)(mon_bp_addr & 0xffff));
-        __write_to_sram(mon_bp_addr, &mon_bp_saved_inst, 1);
+        dma_write_to_sram(mon_bp_addr, &mon_bp_saved_inst, 1);
         z80_context.w.pc--;
         mon_bp_installed = 0;
         mon_cur_addr = mon_bp_addr;

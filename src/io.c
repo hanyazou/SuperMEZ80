@@ -508,6 +508,7 @@ void io_handle() {
         }
         mon_enter();
         io_stat_ = IO_STAT_MONITOR;
+        mon_start();
         while (!mon_step_execution && mon_prompt() != MON_CMD_EXIT);
         mon_leave();
         io_stat_ = IO_STAT_INTERRUPTED;
