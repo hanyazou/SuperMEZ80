@@ -470,7 +470,7 @@ static const struct {
     #ifndef NO_MON_STEP
     { "step",           1, mon_cmd_step,             0,
       "[number of steps]",
-      "Execute next next instruction(s)" },
+      "Execute next instruction(s)" },
     #endif
     { "status",         0, mon_cmd_status,           0,
       "",
