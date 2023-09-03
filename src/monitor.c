@@ -1128,8 +1128,19 @@ void mon_cleanup(void)
     if (z80_context.w.cleanup_code_location == 0x0000) {
         // Use modified RST 08h vector to return to original interrupt return addess
         install_rst_vector(mmu_bank);
-        static const char return_instruction[] = { 0xc9 };  // Z80 RET instruction
-        __write_to_sram(phys_addr(0x000b), return_instruction, sizeof(return_instruction));
+        static const char reti[] = {
+            0xfb,        // EI       ; enable interrupt
+            0xed, 0x4d   // RETI
+        };  // Z80 RET instruction
+        static const char retn[] = {
+            0xed, 0x45   // RETN
+        };  // Z80 RET instruction
+
+        if (z80_context.w.nmi) {
+            __write_to_sram(phys_addr(0x000b), retn, sizeof(retn));
+        } else {
+            __write_to_sram(phys_addr(0x000b), reti, sizeof(reti));
+        }
     }
 
     if (mon_step_execution) {
