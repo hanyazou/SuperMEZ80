@@ -439,8 +439,12 @@ static const struct {
     const char *description;
 } mon_cmds[] = {
     #ifndef NO_MON_BREAKPOINT
-    { "breakpoint",     1, mon_cmd_breakpoint        },
-    { "clearbreakpoint",0, mon_cmd_clearbreakpoint   },
+    { "breakpoint",     1, mon_cmd_breakpoint,       0,
+      "[address]",
+      "Set or show break point" },
+    { "clearbreakpoint",0, mon_cmd_clearbreakpoint,  0,
+      "",
+      "Clear break point" },
     #endif
     { "continue",       0, mon_cmd_continue,         0,
       "",
@@ -464,7 +468,9 @@ static const struct {
       "[variable][=value]",
       "Display or change specified debug variable" },
     #ifndef NO_MON_STEP
-    { "step",           1, mon_cmd_step              },
+    { "step",           1, mon_cmd_step,             0,
+      "[number of steps]",
+      "Execute next next instruction(s)" },
     #endif
     { "status",         0, mon_cmd_status,           0,
       "",
