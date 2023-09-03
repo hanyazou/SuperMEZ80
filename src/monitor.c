@@ -314,19 +314,18 @@ void mon_start()
     printf("Start monitor\n\r");
     #endif
 
-    mon_cur_addr = z80_context.w.pc;
+    mon_cur_addr = phys_addr(z80_context.w.pc);
 
     if (mon_step_execution) {
         mon_step_execution--;
-        mon_cur_addr = z80_context.w.pc;
 
         mon_show_registers();
-        dma_read_from_sram(phys_addr(mon_cur_addr), tmp_buf[0], 64);
-        disas_ops(disas_z80, phys_addr(mon_cur_addr), tmp_buf[0], 64, 1, NULL);
+        dma_read_from_sram(mon_cur_addr, tmp_buf[0], 64);
+        disas_ops(disas_z80, mon_cur_addr, tmp_buf[0], 64, 1, NULL);
     }
 
-    if (!z80_context.w.nmi && mon_bp_installed && z80_context.w.pc == (mon_bp_addr & 0xffff) + 1) {
-        printf("Break at %04X\n\r", (uint16_t)(mon_bp_addr & 0xffff));
+    if (!z80_context.w.nmi && mon_bp_installed && mon_cur_addr == mon_bp_addr + 1) {
+        printf("Break at %04lX\n\r", mon_bp_addr);
         dma_write_to_sram(mon_bp_addr, &mon_bp_saved_inst, 1);
         z80_context.w.pc--;
         mon_bp_installed = 0;
