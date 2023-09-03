@@ -121,6 +121,15 @@ UPDATE_CLEANUP_CODE:
 	LD	(IX+RESTORE_SP+2),H
 	LD	A,(RET_INST_NORMAL)
 	LD	(IX+JUMP_INST),A
+
+	; update return address
+	INC	HL
+	INC	HL
+	LD	SP,HL
+	LD	HL,(SAVED_PC)
+	PUSH	HL
+
+	; restore registers
 	LD	SP,SAVED_IY
 	POP	IY
 	POP	IX

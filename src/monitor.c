@@ -170,8 +170,6 @@ static void reinstall_trampoline(void)
     } else {
         __write_to_sram(bank_phys_addr(mmu_bank, ZERO_PAGE), trampoline, sizeof(trampoline));
     }
-    __write_to_sram(bank_phys_addr(trampoline_installed, trampoline_work), &z80_context.w,
-                    sizeof(z80_context.w));
     trampoline_destroyed = 0;
 }
 
@@ -1113,6 +1111,10 @@ void mon_leave(void)
     // printf("Leave monitor\n\r");
 
     reinstall_trampoline();
+
+    // Update the register values saved in the trampoline because the monitor may altered them
+    __write_to_sram(bank_phys_addr(trampoline_installed, trampoline_work), &z80_context.w,
+                    sizeof(z80_context.w));
 
     // restore bank pins
     set_bank_pins((uint32_t)mmu_bank << 16);
