@@ -261,7 +261,12 @@ extern __bit (*board_memrq_pin_hook)(void);
 #define memrq_pin() (*board_memrq_pin_hook)()
 // RD    read only
 extern __bit (*board_rd_pin_hook)(void);
-#define rd_pin() (*board_rd_pin_hook)()
+#define rd_pin() (board_rd_pin_hook?(*board_rd_pin_hook)():1)
+#define is_board_rd_available() (board_rd_pin_hook != NULL)
+// WR    read only
+extern __bit (*board_wr_pin_hook)(void);
+#define wr_pin() (board_wr_pin_hook?(*board_wr_pin_hook)():1)
+#define is_board_wr_available() (board_wr_pin_hook != NULL)
 
 // BUSRQ write olny
 extern void (*board_set_busrq_pin_hook)(uint8_t);

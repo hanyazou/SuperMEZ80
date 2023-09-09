@@ -46,6 +46,7 @@ void (*board_set_data_dir_hook)(uint8_t) = NULL;
 __bit (*board_ioreq_pin_hook)(void) = NULL;
 __bit (*board_memrq_pin_hook)(void) = NULL;
 __bit (*board_rd_pin_hook)(void) = NULL;
+__bit (*board_wr_pin_hook)(void) = NULL;
 void (*board_set_busrq_pin_hook)(uint8_t) = NULL;
 void (*board_set_reset_pin_hook)(uint8_t) = NULL;
 void (*board_set_nmi_pin_hook)(uint8_t) = NULL;

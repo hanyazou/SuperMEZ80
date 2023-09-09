@@ -304,6 +304,9 @@ static void emuz80_common_set_data_dir(uint8_t v) { TRIS(Z80_DATA) = v; }
 static __bit emuz80_common_ioreq_pin(void) { return R(Z80_IOREQ); }
 static __bit emuz80_common_memrq_pin(void) { return R(Z80_MEMRQ); }
 static __bit emuz80_common_rd_pin(void) { return R(Z80_RD); }
+#ifdef Z80_WR
+static __bit emuz80_common_wr_pin(void) { return R(Z80_WR); }
+#endif
 static void emuz80_common_set_busrq_pin(uint8_t v) { LAT(Z80_BUSRQ) = (__bit)(v & 0x01); }
 static void emuz80_common_set_reset_pin(uint8_t v) { LAT(Z80_RESET) = (__bit)(v & 0x01); }
 
@@ -351,6 +354,10 @@ static void emuz80_common_init()
     board_ioreq_pin_hook        = emuz80_common_ioreq_pin;
     board_memrq_pin_hook        = emuz80_common_memrq_pin;
     board_rd_pin_hook           = emuz80_common_rd_pin;
+    #ifdef Z80_WR
+    board_wr_pin_hook           = emuz80_common_wr_pin;
+    #endif
+
     board_set_busrq_pin_hook    = emuz80_common_set_busrq_pin;
     board_set_reset_pin_hook    = emuz80_common_set_reset_pin;
     #ifdef Z80_NMI
