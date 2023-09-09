@@ -51,13 +51,10 @@ ENTRY:
 	LD	HL,(SRC_ADDR)
 	LD	DE,(DEST_ADDR)
 	LD	A,(LENGTH)
+	LD	C,A
+	XOR	A
 	LD	B,A
-LOOP:
-	LD	A,(HL)
-	LD	(DE),A
-	INC	HL
-	INC	DE
-	DJNZ	LOOP
+	LDIR			; transfer (HL) to (DE), inc HL and DE, dec BC and repeat while 0 < BC
 
 	LD	A,0		; return value
 	JR	TGTINV_GATE
