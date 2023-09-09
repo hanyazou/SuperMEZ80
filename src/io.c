@@ -816,8 +816,8 @@ void io_invoke_target_cpu_prepare(int *saved_status)
     return;
 }
 
-int io_invoke_target_cpu(const param_block_t *inparams, unsigned int ninparams,
-                         const param_block_t *outparams, unsigned int noutparams, int bank)
+int io_invoke_target_cpu(const mem_region_t *inparams, unsigned int ninparams,
+                         const mem_region_t *outparams, unsigned int noutparams, int bank)
 {
     int i;
     uint8_t result_data;
@@ -825,18 +825,12 @@ int io_invoke_target_cpu(const param_block_t *inparams, unsigned int ninparams,
     assert(io_stat() == IO_STAT_MONITOR);
     mon_use_zeropage(bank);
 
-    for (i = 0; i < ninparams; i++) {
-        __write_to_sram(bank_phys_addr(bank, inparams[i].offs), inparams[i].addr,
-                        inparams[i].len);
-    }
+    __write_sram_regions(inparams, ninparams, bank);
 
     // Run the code
     io_wait_write(TGTINV_TRAP, &result_data);
 
-    for (i = 0; i < noutparams; i++) {
-        __read_from_sram(bank_phys_addr(bank, outparams[i].offs), outparams[i].addr,
-                         outparams[i].len);
-    }
+    __read_sram_regions(outparams, noutparams, bank);
 
     return (int)(signed char)result_data;
 }

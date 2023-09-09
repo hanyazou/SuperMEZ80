@@ -121,7 +121,7 @@ typedef struct {
     uint8_t *addr;
     uint16_t offs;
     unsigned int len;
-} param_block_t;
+} mem_region_t;
 
 //
 // Global variables and function prototypes
@@ -162,8 +162,8 @@ extern int cpm_trsect_to_lba(unsigned int drive, unsigned int track, unsigned in
 extern int cpm_trsect_from_lba(unsigned int drive, unsigned int *track, unsigned int *sector,
                                uint32_t lba);
 extern void io_invoke_target_cpu_prepare(int *saved_status);
-extern int io_invoke_target_cpu(const param_block_t *inparams, unsigned int ninparams,
-                                const param_block_t *outparams, unsigned int noutparams, int bank);
+extern int io_invoke_target_cpu(const mem_region_t *inparams, unsigned int ninparams,
+                                const mem_region_t *outparams, unsigned int noutparams, int bank);
 extern void io_invoke_target_cpu_teardown(int *saved_status);
 extern void io_set_interrupt_data(uint8_t data);
 
@@ -197,7 +197,9 @@ extern void set_bank_pins(uint32_t addr);
 extern void dma_write_to_sram(uint32_t dest, const void *buf, unsigned int len);
 extern void dma_read_from_sram(uint32_t src, void *buf, unsigned int len);
 extern void __write_to_sram(uint32_t dest, const void *buf, unsigned int len);
+extern void __write_sram_regions(const mem_region_t *regions, unsigned int n, int bank);
 extern void __read_from_sram(uint32_t src, const void *buf, unsigned int len);
+extern void __read_sram_regions(const mem_region_t *regions, unsigned int n, int bank);
 extern void mmu_bank_config(int nbanks);
 extern void mmu_bank_select(int bank);
 
@@ -219,10 +221,19 @@ extern uint32_t (*board_high_addr_mask_hook)(void);
 #define board_high_addr_mask(addr) (*board_high_addr_mask_hook)()
 extern uint16_t (*board_low_addr_mask_hook)(void);
 #define board_low_addr_mask(addr) (*board_low_addr_mask_hook)()
+
 extern void (*board_write_to_sram_hook)(uint16_t addr, uint8_t *buf, unsigned int len);
 #define board_write_to_sram(addr, buf, len) (*board_write_to_sram_hook)(addr, buf, len)
+extern void (*board_write_sram_regions_hook)(const mem_region_t *regions, unsigned int n, int bank);
+#define board_write_sram_regions(regions, n, bank) (*board_write_sram_regions_hook)(regions, n, bank)
+#define is_board_write_sram_reions_available() (board_write_sram_regions_hook != NULL)
+
 extern void (*board_read_from_sram_hook)(uint16_t addr, uint8_t *buf, unsigned int len);
 #define board_read_from_sram(addr, buf, len) (*board_read_from_sram_hook)(addr, buf, len)
+extern void (*board_read_sram_regions_hook)(const mem_region_t *regions, unsigned int n, int bank);
+#define board_read_sram_regions(regions, n, bank) (*board_read_sram_regions_hook)(regions, n, bank)
+#define is_board_read_sram_reions_available() (board_read_sram_regions_hook != NULL)
+
 extern __bit (*board_io_event_hook)(void);
 #define board_io_event() (*board_io_event_hook)()
 extern void (*board_wait_io_event_hook)(void);
