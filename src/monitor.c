@@ -279,6 +279,12 @@ void mon_setup(void)
         install_nmi_vector(mmu_bank);
     } else
     if (is_board_int_available()) {
+        if (!(is_board_rd_available() && is_board_wr_available())) {
+            // INT handling requires both RD and WR connected to distinguish between
+            // I/O read/write and Interrupt request/acknowledge
+            printf("%s: interrupt is not available\n\r", __func__);
+            return;
+        }
         install_rst_vector(mmu_bank);
         io_set_interrupt_data(0xcf);  // RST 08h instruction
     }

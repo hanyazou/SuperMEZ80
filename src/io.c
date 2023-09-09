@@ -318,7 +318,7 @@ void io_handle() {
     uint8_t io_addr = addr_l_pins();
     uint8_t io_data = data_pins();
 
-    if (0 <= io_interrupt_data) {
+    if (rd_pin() && wr_pin() && 0 <= io_interrupt_data) {
         // it in the interrupt acknowledge cycle.
         // send the data to the cpu.
         io_stat_ = IO_STAT_INTR_WAITING;
