@@ -313,6 +313,125 @@ static void supermez80_cpm_setup_addrbus(uint32_t addr)
     set_bank_pins(addr);
 }
 
+#define SRAM_ACC_UNROLL 8
+static void supermez80_cpm_write_to_sram(uint16_t addr, uint8_t *buf, unsigned int len)
+{
+    uint8_t i, a = (uint8_t)addr;
+
+    LAT(SRAM_CE) = 0;
+    for(i = (uint8_t)(len / SRAM_ACC_UNROLL); 0 < i; i--) {
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_WE) = 0;      // activate /WE
+        LAT(Z80_DATA) = *buf++;
+        LAT(SRAM_WE) = 1;      // deactivate /WE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_WE) = 0;      // activate /WE
+        LAT(Z80_DATA) = *buf++;
+        LAT(SRAM_WE) = 1;      // deactivate /WE
+
+#if 4 <= SRAM_ACC_UNROLL
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_WE) = 0;      // activate /WE
+        LAT(Z80_DATA) = *buf++;
+        LAT(SRAM_WE) = 1;      // deactivate /WE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_WE) = 0;      // activate /WE
+        LAT(Z80_DATA) = *buf++;
+        LAT(SRAM_WE) = 1;      // deactivate /WE
+#endif
+#if 8 <= SRAM_ACC_UNROLL
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_WE) = 0;      // activate /WE
+        LAT(Z80_DATA) = *buf++;
+        LAT(SRAM_WE) = 1;      // deactivate /WE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_WE) = 0;      // activate /WE
+        LAT(Z80_DATA) = *buf++;
+        LAT(SRAM_WE) = 1;      // deactivate /WE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_WE) = 0;      // activate /WE
+        LAT(Z80_DATA) = *buf++;
+        LAT(SRAM_WE) = 1;      // deactivate /WE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_WE) = 0;      // activate /WE
+        LAT(Z80_DATA) = *buf++;
+        LAT(SRAM_WE) = 1;      // deactivate /WE
+#endif
+    }
+    i = len % SRAM_ACC_UNROLL;
+    while (i--) {
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_WE) = 0;      // activate /WE
+        LAT(Z80_DATA) = *buf++;
+        LAT(SRAM_WE) = 1;      // deactivate /WE
+    }
+    LAT(SRAM_CE) = 1;
+}
+
+static void supermez80_cpm_read_from_sram(uint16_t addr, uint8_t *buf, unsigned int len)
+{
+    uint8_t i, a = (uint8_t)addr;
+
+    LAT(SRAM_CE) = 0;
+    for(i = (uint8_t)(len / SRAM_ACC_UNROLL); 0 < i; i--) {
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_OE) = 0;      // activate /OE
+        *buf++ = PORT(Z80_DATA);
+        LAT(SRAM_OE) = 1;      // deactivate /OE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_OE) = 0;      // activate /OE
+        *buf++ = PORT(Z80_DATA);
+        LAT(SRAM_OE) = 1;      // deactivate /OE
+
+#if 4 <= SRAM_ACC_UNROLL
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_OE) = 0;      // activate /OE
+        *buf++ = PORT(Z80_DATA);
+        LAT(SRAM_OE) = 1;      // deactivate /OE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_OE) = 0;      // activate /OE
+        *buf++ = PORT(Z80_DATA);
+        LAT(SRAM_OE) = 1;      // deactivate /OE
+#endif
+#if 8 <= SRAM_ACC_UNROLL
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_OE) = 0;      // activate /OE
+        *buf++ = PORT(Z80_DATA);
+        LAT(SRAM_OE) = 1;      // deactivate /OE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_OE) = 0;      // activate /OE
+        *buf++ = PORT(Z80_DATA);
+        LAT(SRAM_OE) = 1;      // deactivate /OE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_OE) = 0;      // activate /OE
+        *buf++ = PORT(Z80_DATA);
+        LAT(SRAM_OE) = 1;      // deactivate /OE
+
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_OE) = 0;      // activate /OE
+        *buf++ = PORT(Z80_DATA);
+        LAT(SRAM_OE) = 1;      // deactivate /OE
+#endif
+    }
+    i = len % SRAM_ACC_UNROLL;
+    while (i--) {
+        LAT(Z80_ADDR_L) = a++;
+        LAT(SRAM_OE) = 0;      // activate /OE
+        *buf++ = PORT(Z80_DATA);
+        LAT(SRAM_OE) = 1;      // deactivate /OE
+    }
+    LAT(SRAM_CE) = 1;
+}
+
 static __bit supermez80_cpm_io_event(void)
 {
     return CLC1IF;
@@ -338,6 +457,8 @@ void board_init()
     board_start_z80_hook = supermez80_cpm_start_z80;
     board_set_bank_pins_hook = supermez80_cpm_set_bank_pins;
     board_setup_addrbus_hook = supermez80_cpm_setup_addrbus;
+    board_read_from_sram_hook = supermez80_cpm_read_from_sram;
+    board_write_to_sram_hook = supermez80_cpm_write_to_sram;
     board_io_event_hook = supermez80_cpm_io_event;
     board_wait_io_event_hook = supermez80_cpm_wait_io_event;
     board_clear_io_event_hook = supermez80_cpm_clear_io_event;
