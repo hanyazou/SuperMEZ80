@@ -176,6 +176,7 @@ void mon_assert_interrupt(void);
 void mon_setup(void);
 void mon_prepare(void);
 void mon_enter(void);
+void mon_start(void);
 int mon_prompt(void);
 void mon_use_zeropage(int bank);
 void mon_leave(void);
@@ -228,6 +229,15 @@ extern void (*board_wait_io_event_hook)(void);
 #define board_wait_io_event() (*board_wait_io_event_hook)()
 extern void (*board_clear_io_event_hook)(void);
 #define board_clear_io_event() (*board_clear_io_event_hook)()
+extern int (*board_clock_op_hook)(int clocks);
+#define board_clock_op(op) (*board_clock_op_hook)(op)
+#define is_board_clock_op_available() (board_clock_hook != NULL)
+#define BOARD_CLOCK_SUSPEND 0
+#define BOARD_CLOCK_RESUME -1
+#define BOARD_CLOCK_GET    -2
+#define BOARD_CLOCK_HIGH   -3
+#define BOARD_CLOCK_LOW    -4
+#define BOARD_CLOCK_INVERT -5
 
 // Address read and write
 extern uint8_t (*board_addr_l_pins_hook)(void);
@@ -251,7 +261,12 @@ extern __bit (*board_memrq_pin_hook)(void);
 #define memrq_pin() (*board_memrq_pin_hook)()
 // RD    read only
 extern __bit (*board_rd_pin_hook)(void);
-#define rd_pin() (*board_rd_pin_hook)()
+#define rd_pin() (board_rd_pin_hook?(*board_rd_pin_hook)():1)
+#define is_board_rd_available() (board_rd_pin_hook != NULL)
+// WR    read only
+extern __bit (*board_wr_pin_hook)(void);
+#define wr_pin() (board_wr_pin_hook?(*board_wr_pin_hook)():1)
+#define is_board_wr_available() (board_wr_pin_hook != NULL)
 
 // BUSRQ write olny
 extern void (*board_set_busrq_pin_hook)(uint8_t);

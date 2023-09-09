@@ -9,40 +9,8 @@ proc show { msg time } {
     send_user "$msg [ format %7.3f [expr $tmp / 1000000.0 ] ]\n"
 }
 
-set port /dev/cu.usbmodem1444301
-catch { set port $env(PORT) }
-
-set portid [open $port r+]
-set default_timeout 30
-set timeout $default_timeout
-
-expect_before {
-    timeout { puts "\n\nTimeout detected"; exit 2 }
-    eof     { puts "\n\nUnexpected EOD";   exit 1 }
-}
-
-fconfigure $portid -mode "9600,n,8,1"
-spawn -open $portid
-
-
-# connect to the target
-# and reset the target to get sync
-send -break
-sleep 0.5
-send "reset\r"
-expect {
-    "0: CPMDISKS.3" {
-        set selection 0
-    }
-    "1: CPMDISKS.3" {
-        set selection 1
-    }
-    "2: CPMDISKS.3" {
-        set selection 2
-    }
-}
-expect "Select: "
-send $selection
+source common.tcl
+open_cpm3
 
 set boot_time [ time {
 expect "CP/M boot-loader for Z80-Simulator"

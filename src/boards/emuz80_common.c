@@ -97,13 +97,11 @@ static void emuz80_common_sys_init()
     NCO1INC = Z80_CLK_HZ * 2 / 61;
     NCO1CLK = 0x00;             // Clock source Fosc
     NCO1PFM = 0;                // FDC mode
-    NCO1OUT = 1;                // NCO output enable
     NCO1EN = 1;                 // NCO enable
 #else
     // Disable clock output for Z80 (Use external clock for Z80)
     PPS(Z80_CLK) = 0;           // select LATxy
     TRIS(Z80_CLK) = 1;          // set as input
-    NCO1OUT = 0;                // NCO output disable
     NCO1EN = 0;                 // NCO disable
 #endif
 }
@@ -248,6 +246,56 @@ static void emuz80_common_read_from_sram(uint16_t addr, uint8_t *buf, unsigned i
     #endif
 }
 
+static int emuz80_common_clock_op_hook(int clocks)
+{
+    static __uint24 nco1inc;
+    static int running = 1;
+
+    switch (clocks) {
+    case BOARD_CLOCK_SUSPEND:
+        if (!running)
+            return 0;
+        nco1inc = NCO1INC;
+        NCO1INC = 0;
+        NCO1INC = 0;
+        running = 0;
+        if (NCO1OUT)
+            NCO1POL = !NCO1POL;
+        break;
+    case BOARD_CLOCK_RESUME:
+        if (running)
+            return 0;
+        NCO1INC = nco1inc;
+        NCO1INC = nco1inc;
+        running = 1;
+        break;
+    case BOARD_CLOCK_GET:
+        return NCO1OUT;
+        break;
+    case BOARD_CLOCK_HIGH:
+        if (!NCO1OUT)
+            NCO1POL = !NCO1POL;
+        break;
+    case BOARD_CLOCK_LOW:
+        if (NCO1OUT)
+            NCO1POL = !NCO1POL;
+        break;
+    case BOARD_CLOCK_INVERT:
+            NCO1POL = !NCO1POL;
+        break;
+    default:
+        if (clocks <= 0)
+            return 0;
+        while (0 < clocks--) {
+            NCO1POL = !NCO1POL;
+            NCO1POL = !NCO1POL;
+        }
+        break;
+    }
+
+    return 0;
+}
+
 static uint8_t emuz80_common_addr_l_pins(void) { return PORT(Z80_ADDR_L); }
 static void emuz80_common_set_addr_l_pins(uint8_t v) { LAT(Z80_ADDR_L) = v; }
 static uint8_t emuz80_common_data_pins(void) { return PORT(Z80_DATA); }
@@ -256,6 +304,9 @@ static void emuz80_common_set_data_dir(uint8_t v) { TRIS(Z80_DATA) = v; }
 static __bit emuz80_common_ioreq_pin(void) { return R(Z80_IOREQ); }
 static __bit emuz80_common_memrq_pin(void) { return R(Z80_MEMRQ); }
 static __bit emuz80_common_rd_pin(void) { return R(Z80_RD); }
+#ifdef Z80_WR
+static __bit emuz80_common_wr_pin(void) { return R(Z80_WR); }
+#endif
 static void emuz80_common_set_busrq_pin(uint8_t v) { LAT(Z80_BUSRQ) = (__bit)(v & 0x01); }
 static void emuz80_common_set_reset_pin(uint8_t v) { LAT(Z80_RESET) = (__bit)(v & 0x01); }
 
@@ -291,6 +342,9 @@ static void emuz80_common_init()
     board_low_addr_mask_hook    = emuz80_common_low_addr_mask;
     board_write_to_sram_hook    = emuz80_common_write_to_sram;
     board_read_from_sram_hook   = emuz80_common_read_from_sram;
+    #ifdef Z80_CLK_HZ
+    board_clock_op_hook         = emuz80_common_clock_op_hook;
+    #endif
 
     board_addr_l_pins_hook      = emuz80_common_addr_l_pins;
     board_set_addr_l_pins_hook  = emuz80_common_set_addr_l_pins;
@@ -300,6 +354,10 @@ static void emuz80_common_init()
     board_ioreq_pin_hook        = emuz80_common_ioreq_pin;
     board_memrq_pin_hook        = emuz80_common_memrq_pin;
     board_rd_pin_hook           = emuz80_common_rd_pin;
+    #ifdef Z80_WR
+    board_wr_pin_hook           = emuz80_common_wr_pin;
+    #endif
+
     board_set_busrq_pin_hook    = emuz80_common_set_busrq_pin;
     board_set_reset_pin_hook    = emuz80_common_set_reset_pin;
     #ifdef Z80_NMI

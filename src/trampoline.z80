@@ -78,17 +78,6 @@ ENTRY:
 	JR	TGTINV_GATE
 
 EXIT:
-	LD	A,(NMI_FLAG)	; Update the return instruction according to NMI_FLAG
-	LD	HL,RET_INST_RST
-	OR	A
-	JR	Z,SET_RET_INST
-	LD	HL,RET_INST_NMI
-SET_RET_INST:
-	LD	C,(HL)
-	INC	HL
-	LD	B,(HL)
-	LD	(RET_INST),BC	; Update the return instruction
-
 ;	setup clean up code
 	LD	HL,(CLEANUP_CODE_LOCATION)
 	LD	A,L
@@ -132,6 +121,15 @@ UPDATE_CLEANUP_CODE:
 	LD	(IX+RESTORE_SP+2),H
 	LD	A,(RET_INST_NORMAL)
 	LD	(IX+JUMP_INST),A
+
+	; update return address
+	INC	HL
+	INC	HL
+	LD	SP,HL
+	LD	HL,(SAVED_PC)
+	PUSH	HL
+
+	; restore registers
 	LD	SP,SAVED_IY
 	POP	IY
 	POP	IX
@@ -140,15 +138,8 @@ UPDATE_CLEANUP_CODE:
 	POP	BC
 	POP	AF
 	EI
-RET_INST:
-	RETN			; return to RESTORE_SP because SP is pointing to FAKE_RET_ADDR
-
-RET_INST_RST:
-	RETI
-RET_INST_NMI:
-	RETN
 RET_INST_NORMAL:
-	RET
+	RET			; return to RESTORE_SP because SP is pointing to FAKE_RET_ADDR
 
 ;
 ;	work area

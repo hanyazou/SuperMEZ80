@@ -170,8 +170,6 @@ static void reinstall_trampoline(void)
     } else {
         __write_to_sram(bank_phys_addr(mmu_bank, ZERO_PAGE), trampoline, sizeof(trampoline));
     }
-    __write_to_sram(bank_phys_addr(trampoline_installed, trampoline_work), &z80_context.w,
-                    sizeof(z80_context.w));
     trampoline_destroyed = 0;
 }
 
@@ -281,6 +279,12 @@ void mon_setup(void)
         install_nmi_vector(mmu_bank);
     } else
     if (is_board_int_available()) {
+        if (!(is_board_rd_available() && is_board_wr_available())) {
+            // INT handling requires both RD and WR connected to distinguish between
+            // I/O read/write and Interrupt request/acknowledge
+            printf("%s: interrupt is not available\n\r", __func__);
+            return;
+        }
         install_rst_vector(mmu_bank);
         io_set_interrupt_data(0xcf);  // RST 08h instruction
     }
@@ -300,12 +304,6 @@ void mon_prepare()
 
 void mon_enter()
 {
-    uint16_t stack_addr;
-
-    #ifdef CPM_MON_DEBUG
-    printf("Enter monitor\n\r");
-    #endif
-
     __read_from_sram(phys_addr(trampoline_work), &z80_context.w, sizeof(z80_context.w));
 
     if (z80_context.w.pc < 0x0100) {
@@ -314,21 +312,27 @@ void mon_enter()
     } else {
         z80_context.w.cleanup_code_location = 0x0000;
     }
+}
 
-    mon_cur_addr = z80_context.w.pc;
+void mon_start()
+{
+    #ifdef CPM_MON_DEBUG
+    printf("Start monitor\n\r");
+    #endif
+
+    mon_cur_addr = phys_addr(z80_context.w.pc);
 
     if (mon_step_execution) {
         mon_step_execution--;
-        mon_cur_addr = z80_context.w.pc;
 
         mon_show_registers();
-        __read_from_sram(phys_addr(mon_cur_addr), tmp_buf[0], 64);
-        disas_ops(disas_z80, phys_addr(mon_cur_addr), tmp_buf[0], 64, 1, NULL);
+        dma_read_from_sram(mon_cur_addr, tmp_buf[0], 64);
+        disas_ops(disas_z80, mon_cur_addr, tmp_buf[0], 64, 1, NULL);
     }
 
-    if (!z80_context.w.nmi && mon_bp_installed && z80_context.w.pc == (mon_bp_addr & 0xffff) + 1) {
-        printf("Break at %04X\n\r", (uint16_t)(mon_bp_addr & 0xffff));
-        __write_to_sram(mon_bp_addr, &mon_bp_saved_inst, 1);
+    if (!z80_context.w.nmi && mon_bp_installed && mon_cur_addr == mon_bp_addr + 1) {
+        printf("Break at %04lX\n\r", mon_bp_addr);
+        dma_write_to_sram(mon_bp_addr, &mon_bp_saved_inst, 1);
         z80_context.w.pc--;
         mon_bp_installed = 0;
         mon_cur_addr = mon_bp_addr;
@@ -429,6 +433,7 @@ int mon_cmd_continue(int argc, char *args[]);
 int mon_cmd_reset(int argc, char *args[]);
 int mon_cmd_set(int argc, char *args[]);
 int mon_cmd_write(int argc, char *args[]);
+int mon_cmd_jump(int argc, char *args[]);
 
 #define MON_MAX_ARGS 4
 #define MON_STR_ARG(n) (1 << (n))
@@ -441,8 +446,12 @@ static const struct {
     const char *description;
 } mon_cmds[] = {
     #ifndef NO_MON_BREAKPOINT
-    { "breakpoint",     1, mon_cmd_breakpoint        },
-    { "clearbreakpoint",0, mon_cmd_clearbreakpoint   },
+    { "breakpoint",     1, mon_cmd_breakpoint,       0,
+      "[address]",
+      "Set or show break point" },
+    { "clearbreakpoint",0, mon_cmd_clearbreakpoint,  0,
+      "",
+      "Clear break point" },
     #endif
     { "continue",       0, mon_cmd_continue,         0,
       "",
@@ -457,6 +466,9 @@ static const struct {
     { "dump",           2, mon_cmd_dump,             0,
       "[addr][,length]",
       "Display data on the target memory" },
+    { "jump",           1, mon_cmd_jump,             0,
+      "[addr]",
+      "Jump to specified address and start execution " },
     { "reset",          0, mon_cmd_reset,            0,
       "Restart the system" },
     { "sdread",         2, mon_cmd_sdread,           0,
@@ -466,7 +478,9 @@ static const struct {
       "[variable][=value]",
       "Display or change specified debug variable" },
     #ifndef NO_MON_STEP
-    { "step",           1, mon_cmd_step              },
+    { "step",           1, mon_cmd_step,             0,
+      "[number of steps]",
+      "Execute next instruction(s)" },
     #endif
     { "status",         0, mon_cmd_status,           0,
       "",
@@ -1066,6 +1080,20 @@ int mon_cmd_write(int argc, char *args[])
     return MON_CMD_OK;
 }
 
+int mon_cmd_jump(int argc, char *args[])
+{
+    uint32_t addr = mon_cur_addr;
+
+    if (args[0] != NULL && *args[0] != '\0')
+        addr = mon_strtoval(args[0]);
+
+    mmu_bank_select(phys_addr_bank(addr));
+    z80_context.w.pc = (uint16_t)addr;
+
+    // exit the monitor and execute instructions from specified address
+    return MON_CMD_EXIT;
+}
+
 int mon_prompt(void)
 {
     char line[48];
@@ -1114,6 +1142,10 @@ void mon_leave(void)
 
     reinstall_trampoline();
 
+    // Update the register values saved in the trampoline because the monitor may altered them
+    __write_to_sram(bank_phys_addr(trampoline_installed, trampoline_work), &z80_context.w,
+                    sizeof(z80_context.w));
+
     // restore bank pins
     set_bank_pins((uint32_t)mmu_bank << 16);
 }
@@ -1128,8 +1160,21 @@ void mon_cleanup(void)
     if (z80_context.w.cleanup_code_location == 0x0000) {
         // Use modified RST 08h vector to return to original interrupt return addess
         install_rst_vector(mmu_bank);
-        static const char return_instruction[] = { 0xc9 };  // Z80 RET instruction
-        __write_to_sram(phys_addr(0x000b), return_instruction, sizeof(return_instruction));
+        static const char reti[] = {
+            0xfb,        // EI       ; enable interrupt
+            0xed, 0x4d   // RETI
+        };  // Z80 RET instruction
+        static const char retn[] = {
+            0x00,        // NOP      ; this is a dummy for EI in reti[] so that
+                         //          ; these two shall have same byte count
+            0xed, 0x45   // RETN
+        };  // Z80 RET instruction
+
+        if (z80_context.w.nmi) {
+            __write_to_sram(phys_addr(0x000b), retn, sizeof(retn));
+        } else {
+            __write_to_sram(phys_addr(0x000b), reti, sizeof(reti));
+        }
     }
 
     if (mon_step_execution) {
