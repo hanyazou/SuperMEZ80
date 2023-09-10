@@ -837,9 +837,16 @@ int io_invoke_target_cpu(const mem_region_t *inparams, unsigned int ninparams,
 {
     int i;
     uint8_t result_data;
+    unsigned int size;
 
     assert(io_stat() == IO_STAT_MONITOR);
-    mon_use_zeropage(bank);
+
+    size = 0;
+    for (i = 0; i < ninparams; i++) {
+        size = UTIL_MAX(size, inparams[i].offs + inparams[i].len);
+    }
+
+    mon_use_zeropage(bank, size);
 
     __write_sram_regions(inparams, ninparams, bank);
 

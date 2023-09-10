@@ -182,7 +182,7 @@ void mon_enter(void);
 void mon_enter_nmi(void);
 void mon_start(void);
 int mon_prompt(void);
-void mon_use_zeropage(int bank);
+void mon_use_zeropage(int bank, unsigned int size);
 void mon_leave(void);
 void mon_cleanup(void);
 

@@ -78,6 +78,7 @@ static const uint16_t trampoline_cleanup_work =
 static const uint16_t trampoline_nmi_work =
     NMI_VECTOR + sizeof(trampoline_nmi) - sizeof(struct trampoline_work_s);
 static unsigned char zero_page_saved[ZERO_PAGE_SIZE];
+static unsigned int zero_page_saved_size = 0;
 static int trampoline_installed = MMU_INVALID_BANK;
 static int trampoline_destroyed = 0;
 static unsigned char nmi_vector_saved[NMI_VECTOR_SIZE];
@@ -160,13 +161,19 @@ static void uninstall_trampoline(void)
     if (trampoline_installed == MMU_INVALID_BANK)
         return;
     __write_to_sram(bank_phys_addr(trampoline_installed, ZERO_PAGE), zero_page_saved,
-                    ZERO_PAGE_SIZE);
+                    zero_page_saved_size);
     trampoline_installed = MMU_INVALID_BANK;
+    zero_page_saved_size = 0;
 }
 
-static void save_zero_page(bank)
+static void save_zero_page(int bank, unsigned int size)
 {
-    __read_from_sram(bank_phys_addr(bank, ZERO_PAGE), zero_page_saved, sizeof(zero_page_saved));
+    if (size <= zero_page_saved_size)
+        return;
+    __read_from_sram(bank_phys_addr(bank, ZERO_PAGE + zero_page_saved_size),
+                     zero_page_saved + zero_page_saved_size,
+                     size - zero_page_saved_size);
+    zero_page_saved_size = size;
 }
 
 static void install_trampoline(int bank)
@@ -174,7 +181,7 @@ static void install_trampoline(int bank)
     if (trampoline_installed != MMU_INVALID_BANK) {
         uninstall_trampoline();
     }
-    save_zero_page(bank);
+    mon_use_zeropage(bank, ZERO_PAGE + sizeof(trampoline));
     __write_to_sram(bank_phys_addr(bank, ZERO_PAGE), trampoline, sizeof(trampoline));
     trampoline_installed = bank;
     trampoline_destroyed = 0;
@@ -183,6 +190,7 @@ static void install_trampoline(int bank)
 static void reinstall_trampoline()
 {
     assert(trampoline_installed != MMU_INVALID_BANK);
+    mon_use_zeropage(trampoline_installed, ZERO_PAGE + sizeof(trampoline));
     __write_to_sram(bank_phys_addr(trampoline_installed, ZERO_PAGE), trampoline, sizeof(trampoline));
     trampoline_destroyed = 0;
 }
@@ -192,7 +200,7 @@ static void install_trampoline_nmi(int bank)
     if (trampoline_installed != MMU_INVALID_BANK) {
         uninstall_trampoline();
     }
-    save_zero_page(bank);
+    mon_use_zeropage(bank, NMI_VECTOR + sizeof(trampoline_nmi));
     __write_to_sram(bank_phys_addr(bank, NMI_VECTOR), trampoline_nmi,
                     sizeof(trampoline_nmi) - sizeof(struct trampoline_work_s));
     trampoline_installed = bank;
@@ -218,11 +226,12 @@ static void install_trampoline_cleanup(void)
     }
 }
 
-void mon_use_zeropage(int bank)
+void mon_use_zeropage(int bank, unsigned int size)
 {
     if (trampoline_installed != bank) {
-        install_trampoline(bank);
+        uninstall_trampoline();
     }
+    save_zero_page(bank, size);
     trampoline_destroyed = 1;
 }
 
