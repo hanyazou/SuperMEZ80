@@ -117,20 +117,20 @@ void mem_init()
 #endif  // !CPM_MMU_EXERCISE
 }
 
-#define memcpy_on_target_buf 0x80
+static const unsigned char dma_helper_z80[] = {
+#include "dma_helper.inc"
+};
+#define memcpy_on_target_buf sizeof(dma_helper_z80)
 #define memcpy_on_target_buf_size 0x80
 static void __memcpy_on_target(uint16_t dest, uint16_t src, uint8_t *buf, unsigned int len,
                                int bank)
 {
-    static const unsigned char dma_helper_z80[] = {
-        #include "dma_helper.inc"
-    };
     struct dma_helper_param {
         uint16_t src_addr;
         uint16_t dest_addr;
         uint8_t length;
     } params;
-    param_block_t param_blocks[3] = {
+    mem_region_t param_blocks[3] = {
         { (uint8_t *)dma_helper_z80, 0x0000, sizeof(dma_helper_z80) },
         { (uint8_t *)&params, 0x0004, sizeof(params) },
     };
@@ -265,11 +265,44 @@ void __write_to_sram(uint32_t dest, const void *buf, unsigned int len)
     board_write_to_sram(dest & 0xffff, (uint8_t*)buf, len);
 }
 
+void __write_sram_regions(const mem_region_t *regions, unsigned int n, int bank)
+{
+    int i;
+
+    if (is_board_write_sram_reions_available()) {
+        board_write_sram_regions(regions, n, bank);
+        return;
+    }
+
+    set_data_dir(0x00);     // Set as output to write to the SRAM
+    for (i = 0; i < n; i++) {
+        board_setup_addrbus(bank_phys_addr(bank, regions[i].offs));
+        board_write_to_sram(regions[i].offs, regions[i].addr, regions[i].len);
+    }
+}
+
 void __read_from_sram(uint32_t src, const void *buf, unsigned int len)
 {
     board_setup_addrbus(src);
     set_data_dir(0xff);     // Set as input to read from the SRAM
     board_read_from_sram(src & 0xffff, (uint8_t*)buf, len);
+}
+
+
+void __read_sram_regions(const mem_region_t *regions, unsigned int n, int bank)
+{
+    int i;
+
+    if (is_board_read_sram_reions_available()) {
+        board_read_sram_regions(regions, n, bank);
+        return;
+    }
+
+    set_data_dir(0xff);     // Set as input to read from the SRAM
+    for (i = 0; i < n; i++) {
+        board_setup_addrbus(bank_phys_addr(bank, regions[i].offs));
+        board_read_from_sram(regions[i].offs, regions[i].addr, regions[i].len);
+    }
 }
 
 void mmu_bank_config(int nbanks)

@@ -1,5 +1,5 @@
 ;
-;	SuperMEZ80 CP/M DMA helper
+;	SuperMEZ80-CPM Trampoline at the zero page
 ;
 ;	Copyright (C) 2023 by Hanyazou
 ;
@@ -28,35 +28,73 @@
 ;	I/O ports
 ;
 CONDAT		EQU	1	; console output port
-TGTINV_TRAP	EQU	173	; return from target CPU invocation
-
-	ORG	0000h
-TGTINV_GATE:
-	OUT (TGTINV_TRAP),A
-        JR ENTRY
-
-	ORG	0004h
-PARAMS:
-SRC_ADDR:
-	DEFW	0000h		; source address
-DEST_ADDR:
-	DEFW	0000h		; destination address
-LENGTH:
-	DEFB	00h		; number of bytes to copy
+MON_CLEANUP	EQU	170	; clean up monitor mode
+MON_PREPARE	EQU	171	; prepare monitor mode
+MON_ENTER	EQU	172	; clean up monitor mode
+MON_PREPARE_NMI	EQU	174	; prepare monitor mode for NMI
+MON_ENTER_NMI	EQU	175	; enter monitor mode for NMI
+;
+;	start of zero page
+;
+;	Note: The condition bits are not affected by OUT, NOP, JP and JR instructions
+;
+	ORG	0		; reset vector
+TGTINV_GATE	EQU	$
 
 ;
-;	DMA helper entry
+;	NMI interrupt vector
 ;
-ENTRY:
-	LD	HL,(SRC_ADDR)
-	LD	DE,(DEST_ADDR)
-	LD	A,(LENGTH)
-	LD	C,A
-	XOR	A
-	LD	B,A
-	LDIR			; transfer (HL) to (DE), inc HL and DE, dec BC and repeat while 0 < BC
+	ORG	0066H		; NMI interrupt vector
+	OUT	(MON_PREPARE_NMI),A
+	NOP
+	LD	(SAVED_SP),SP
+	LD	SP,INT_STACK
+	PUSH	AF
+	LD	A,1
+	LD	(NMI_FLAG),A
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	PUSH	IX
+	PUSH	IY
 
-	LD	A,0		; return value
-	JR	TGTINV_GATE
+	LD	SP,(SAVED_SP)	; Load original SP
+	POP	HL		; Save return address
+	LD	(SAVED_PC),HL
+
+	LD	HL,TGTINV_GATE
+	LD	(HL),0D3h	; OUT (MON_ENTER_NMI),A
+	INC	HL
+	LD	(HL),175
+	JP	TGTINV_GATE
+
 ;
+;	work area
+;	the structure of this area must be identical to struct trampoline_work_s in monitor.c
+SAVED_IY:
+	DEFW	0
+SAVED_IX:
+	DEFW	0
+SAVED_HL:
+	DEFW	0
+SAVED_DE:
+	DEFW	0
+SAVED_BC:
+	DEFW	0
+SAVED_AF:
+	DEFW	0
+INT_STACK:
+FAKE_RET_ADDR:
+	DEFW	0
+SAVED_PC:
+	DEFW	0
+SAVED_SP:
+	DEFW	0
+CLEANUP_CODE_LOCATION:
+	DEFW	0
+NMI_FLAG:
+	DEFB	0
+WORK_RFU:
+	DEFB	0
+
 	END

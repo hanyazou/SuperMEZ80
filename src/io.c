@@ -453,7 +453,9 @@ void io_handle() {
         hw_ctrl_write(io_data);
         break;
     case MON_PREPARE:
+    case MON_PREPARE_NMI:
     case MON_ENTER:
+    case MON_ENTER_NMI:
     case MON_CLEANUP:
         do_bus_master = 1;
         break;
@@ -496,17 +498,25 @@ void io_handle() {
         mmu_bank_select(io_data);
         goto exit_bus_master;
     case MON_PREPARE:
-        mon_prepare();
+    case MON_PREPARE_NMI:
+        if (io_addr == MON_PREPARE_NMI)
+            mon_prepare_nmi();
+        else
+            mon_prepare();
         io_stat_ = IO_STAT_INTERRUPTED;
         goto exit_bus_master;
     case MON_ENTER:
+    case MON_ENTER_NMI:
         io_stat_ = IO_STAT_INTERRUPTED;
         // new line if some output from the target
         if (prev_output_chars != io_output_chars) {
             printf("\n\r");
             prev_output_chars = io_output_chars;
         }
-        mon_enter();
+        if (io_addr == MON_ENTER_NMI)
+            mon_enter_nmi();
+        else
+            mon_enter();
         io_stat_ = IO_STAT_MONITOR;
         mon_start();
         while (!mon_step_execution && mon_prompt() != MON_CMD_EXIT);
@@ -798,45 +808,52 @@ void io_invoke_target_cpu_prepare(int *saved_status)
     bus_master(1);
     mon_setup();            // Hook NMI handler and assert /NMI
 
-    io_wait_write(MON_PREPARE, NULL);
+    io_wait_write(is_board_nmi_available() ? MON_PREPARE_NMI : MON_PREPARE, NULL);
 
     #ifdef CPM_IO_DEBUG
     printf("%s: mon_prepare()\n\r", __func__);
     #endif
-    mon_prepare();          // Install the trampoline code
-    io_wait_write(MON_ENTER, NULL);
+    if (is_board_nmi_available())  // Install the trampoline code
+        mon_prepare_nmi();
+    else
+        mon_prepare();
+    io_wait_write(is_board_nmi_available() ? MON_ENTER_NMI : MON_ENTER, NULL);
     io_stat_ = IO_STAT_PREPINVOKE;
 
     #ifdef CPM_IO_DEBUG
     printf("%s: mon_enter()\n\r", __func__);
     #endif
-    mon_enter();            // Now we can use the trampoline
+    if (is_board_nmi_available())  // Now we can use the trampoline
+        mon_enter_nmi();
+    else
+        mon_enter();
     io_stat_ = IO_STAT_MONITOR;
 
     return;
 }
 
-int io_invoke_target_cpu(const param_block_t *inparams, unsigned int ninparams,
-                         const param_block_t *outparams, unsigned int noutparams, int bank)
+int io_invoke_target_cpu(const mem_region_t *inparams, unsigned int ninparams,
+                         const mem_region_t *outparams, unsigned int noutparams, int bank)
 {
     int i;
     uint8_t result_data;
+    unsigned int size;
 
     assert(io_stat() == IO_STAT_MONITOR);
-    mon_use_zeropage(bank);
 
+    size = 0;
     for (i = 0; i < ninparams; i++) {
-        __write_to_sram(bank_phys_addr(bank, inparams[i].offs), inparams[i].addr,
-                        inparams[i].len);
+        size = UTIL_MAX(size, inparams[i].offs + inparams[i].len);
     }
+
+    mon_use_zeropage(bank, size);
+
+    __write_sram_regions(inparams, ninparams, bank);
 
     // Run the code
     io_wait_write(TGTINV_TRAP, &result_data);
 
-    for (i = 0; i < noutparams; i++) {
-        __read_from_sram(bank_phys_addr(bank, outparams[i].offs), outparams[i].addr,
-                         outparams[i].len);
-    }
+    __read_sram_regions(outparams, noutparams, bank);
 
     return (int)(signed char)result_data;
 }
