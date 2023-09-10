@@ -37,6 +37,11 @@ static const unsigned char trampoline[] = {
 #include "trampoline.inc"
 };
 
+static const unsigned char trampoline_cleanup[] = {
+// trampoline cleanup code at zero page
+#include "trampoline_cleanup.inc"
+};
+
 #define ZERO_PAGE 0x0000
 #define ZERO_PAGE_SIZE 256
 #define NMI_VECTOR 0x0066
@@ -62,6 +67,8 @@ struct trampoline_work_s {
 
 static const uint16_t trampoline_work =
     sizeof(trampoline) - sizeof(struct trampoline_work_s);
+static const uint16_t trampoline_cleanup_work =
+    sizeof(trampoline_cleanup) - sizeof(struct trampoline_work_s);
 static unsigned char zero_page_saved[ZERO_PAGE_SIZE];
 static int trampoline_installed = MMU_INVALID_BANK;
 static int trampoline_destroyed = 0;
@@ -160,17 +167,23 @@ static void install_trampoline(int bank)
     trampoline_destroyed = 0;
 }
 
-static void reinstall_trampoline(void)
+static void install_trampoline_cleanup(void)
 {
-    if (trampoline_installed == mmu_bank && !trampoline_destroyed) {
-        return;
-    }
-    if (trampoline_installed != mmu_bank) {
-        install_trampoline(mmu_bank);
+    if (trampoline_installed == mmu_bank && trampoline_destroyed &&
+        z80_context.w.cleanup_code_location == 0x0000) {
+        // special case in which you can short cut.
+        // no need to save zero page because no need to switch bank,
+        // the trampoline is already destroyed, we can't use existing one and
+        // no need to relocation because cleanup_code_location is 0x0000
+        __write_to_sram(bank_phys_addr(mmu_bank, ZERO_PAGE), trampoline_cleanup,
+                        sizeof(trampoline_cleanup) - sizeof(struct trampoline_work_s));
+        __write_to_sram(bank_phys_addr(mmu_bank, trampoline_cleanup_work), &z80_context.w,
+                        sizeof(z80_context.w));
     } else {
-        __write_to_sram(bank_phys_addr(mmu_bank, ZERO_PAGE), trampoline, sizeof(trampoline));
+        install_trampoline(mmu_bank);
+        __write_to_sram(bank_phys_addr(mmu_bank, trampoline_work), &z80_context.w,
+                        sizeof(z80_context.w));
     }
-    trampoline_destroyed = 0;
 }
 
 void mon_use_zeropage(int bank)
@@ -1140,11 +1153,7 @@ void mon_leave(void)
 {
     // printf("Leave monitor\n\r");
 
-    reinstall_trampoline();
-
-    // Update the register values saved in the trampoline because the monitor may altered them
-    __write_to_sram(bank_phys_addr(trampoline_installed, trampoline_work), &z80_context.w,
-                    sizeof(z80_context.w));
+    install_trampoline_cleanup();
 
     // restore bank pins
     set_bank_pins((uint32_t)mmu_bank << 16);
