@@ -453,7 +453,9 @@ void io_handle() {
         hw_ctrl_write(io_data);
         break;
     case MON_PREPARE:
+    case MON_PREPARE_NMI:
     case MON_ENTER:
+    case MON_ENTER_NMI:
     case MON_CLEANUP:
         do_bus_master = 1;
         break;
@@ -496,17 +498,25 @@ void io_handle() {
         mmu_bank_select(io_data);
         goto exit_bus_master;
     case MON_PREPARE:
-        mon_prepare();
+    case MON_PREPARE_NMI:
+        if (io_addr == MON_PREPARE_NMI)
+            mon_prepare_nmi();
+        else
+            mon_prepare();
         io_stat_ = IO_STAT_INTERRUPTED;
         goto exit_bus_master;
     case MON_ENTER:
+    case MON_ENTER_NMI:
         io_stat_ = IO_STAT_INTERRUPTED;
         // new line if some output from the target
         if (prev_output_chars != io_output_chars) {
             printf("\n\r");
             prev_output_chars = io_output_chars;
         }
-        mon_enter();
+        if (io_addr == MON_ENTER_NMI)
+            mon_enter_nmi();
+        else
+            mon_enter();
         io_stat_ = IO_STAT_MONITOR;
         mon_start();
         while (!mon_step_execution && mon_prompt() != MON_CMD_EXIT);
@@ -798,19 +808,25 @@ void io_invoke_target_cpu_prepare(int *saved_status)
     bus_master(1);
     mon_setup();            // Hook NMI handler and assert /NMI
 
-    io_wait_write(MON_PREPARE, NULL);
+    io_wait_write(is_board_nmi_available() ? MON_PREPARE_NMI : MON_PREPARE, NULL);
 
     #ifdef CPM_IO_DEBUG
     printf("%s: mon_prepare()\n\r", __func__);
     #endif
-    mon_prepare();          // Install the trampoline code
-    io_wait_write(MON_ENTER, NULL);
+    if (is_board_nmi_available())  // Install the trampoline code
+        mon_prepare_nmi();
+    else
+        mon_prepare();
+    io_wait_write(is_board_nmi_available() ? MON_ENTER_NMI : MON_ENTER, NULL);
     io_stat_ = IO_STAT_PREPINVOKE;
 
     #ifdef CPM_IO_DEBUG
     printf("%s: mon_enter()\n\r", __func__);
     #endif
-    mon_enter();            // Now we can use the trampoline
+    if (is_board_nmi_available())  // Now we can use the trampoline
+        mon_enter_nmi();
+    else
+        mon_enter();
     io_stat_ = IO_STAT_MONITOR;
 
     return;

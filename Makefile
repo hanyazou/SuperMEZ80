@@ -54,6 +54,7 @@ HDRS := $(SRC_DIR)/supermez80.h $(SRC_DIR)/picconfig.h \
         $(SRC_DIR)/disas.h $(SRC_DIR)/disas_z80.h \
         $(BUILD_DIR)/ipl.inc $(BUILD_DIR)/trampoline.inc $(BUILD_DIR)/mmu_exercise.inc \
         $(BUILD_DIR)/trampoline_cleanup.inc \
+        $(BUILD_DIR)/trampoline_nmi.inc \
         $(BUILD_DIR)/dma_helper.inc \
         $(BUILD_DIR)/dummy.inc \
         $(DRIVERS_DIR)/pic18f47q43_spi.c \

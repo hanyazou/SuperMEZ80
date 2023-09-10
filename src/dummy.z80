@@ -31,6 +31,7 @@ TGTINV_TRAP	EQU	173	; return from target CPU invocation
 
 	ORG	0000h
 ENTRY:
+	LD SP,800h
 	LD A,0
 	OUT (TGTINV_TRAP),A
 	HALT

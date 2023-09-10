@@ -84,6 +84,8 @@
 #define MON_PREPARE      171    // ABh prepare monitor mode
 #define MON_ENTER        172    // ACh enter monitor mode
 #define TGTINV_TRAP      173    // ADh return from target CPU invocation
+#define MON_PREPARE_NMI  174    // AEh prepare monitor mode for NMI
+#define MON_ENTER_NMI    175    // AFh enter monitor mode for NMI
 
 #define MMU_INVALID_BANK 0xff
 
@@ -175,7 +177,9 @@ void mon_init(void);
 void mon_assert_interrupt(void);
 void mon_setup(void);
 void mon_prepare(void);
+void mon_prepare_nmi(void);
 void mon_enter(void);
+void mon_enter_nmi(void);
 void mon_start(void);
 int mon_prompt(void);
 void mon_use_zeropage(int bank);

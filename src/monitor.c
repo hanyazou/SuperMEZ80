@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <mcp23s08.h>
 #include <utils.h>
 #include <disas.h>
@@ -40,6 +41,11 @@ static const unsigned char trampoline[] = {
 static const unsigned char trampoline_cleanup[] = {
 // trampoline cleanup code at zero page
 #include "trampoline_cleanup.inc"
+};
+
+static const unsigned char trampoline_nmi[] = {
+// trampoline code at zero page for NMI
+#include "trampoline_nmi.inc"
 };
 
 #define ZERO_PAGE 0x0000
@@ -69,6 +75,8 @@ static const uint16_t trampoline_work =
     sizeof(trampoline) - sizeof(struct trampoline_work_s);
 static const uint16_t trampoline_cleanup_work =
     sizeof(trampoline_cleanup) - sizeof(struct trampoline_work_s);
+static const uint16_t trampoline_nmi_work =
+    NMI_VECTOR + sizeof(trampoline_nmi) - sizeof(struct trampoline_work_s);
 static unsigned char zero_page_saved[ZERO_PAGE_SIZE];
 static int trampoline_installed = MMU_INVALID_BANK;
 static int trampoline_destroyed = 0;
@@ -143,7 +151,7 @@ static void install_nmi_vector(int bank)
         uninstall_nmi_vector();
     }
     __read_from_sram(bank_phys_addr(bank, NMI_VECTOR), nmi_vector_saved, NMI_VECTOR_SIZE);
-    __write_to_sram(bank_phys_addr(bank, NMI_VECTOR), &trampoline[NMI_VECTOR], NMI_VECTOR_SIZE);
+    __write_to_sram(bank_phys_addr(bank, NMI_VECTOR), trampoline_nmi, NMI_VECTOR_SIZE);
     nmi_vector_installed = bank;
 }
 
@@ -156,15 +164,39 @@ static void uninstall_trampoline(void)
     trampoline_installed = MMU_INVALID_BANK;
 }
 
+static void save_zero_page(bank)
+{
+    __read_from_sram(bank_phys_addr(bank, ZERO_PAGE), zero_page_saved, sizeof(zero_page_saved));
+}
+
 static void install_trampoline(int bank)
 {
     if (trampoline_installed != MMU_INVALID_BANK) {
         uninstall_trampoline();
     }
-    __read_from_sram(bank_phys_addr(bank, ZERO_PAGE), zero_page_saved, sizeof(zero_page_saved));
+    save_zero_page(bank);
     __write_to_sram(bank_phys_addr(bank, ZERO_PAGE), trampoline, sizeof(trampoline));
     trampoline_installed = bank;
     trampoline_destroyed = 0;
+}
+
+static void reinstall_trampoline()
+{
+    assert(trampoline_installed != MMU_INVALID_BANK);
+    __write_to_sram(bank_phys_addr(trampoline_installed, ZERO_PAGE), trampoline, sizeof(trampoline));
+    trampoline_destroyed = 0;
+}
+
+static void install_trampoline_nmi(int bank)
+{
+    if (trampoline_installed != MMU_INVALID_BANK) {
+        uninstall_trampoline();
+    }
+    save_zero_page(bank);
+    __write_to_sram(bank_phys_addr(bank, NMI_VECTOR), trampoline_nmi,
+                    sizeof(trampoline_nmi) - sizeof(struct trampoline_work_s));
+    trampoline_installed = bank;
+    trampoline_destroyed = 1;  // mark as destroyed because trampoline_nmi isn't equal to the trampoline
 }
 
 static void install_trampoline_cleanup(void)
@@ -306,13 +338,18 @@ void mon_setup(void)
 
 void mon_prepare()
 {
-    if (is_board_nmi_available()) {
-        set_nmi_pin(1);
-    } else
     if (is_board_int_available()) {
         set_int_pin(1);
     }
     install_trampoline(mmu_bank);
+}
+
+void mon_prepare_nmi()
+{
+    if (is_board_nmi_available()) {
+        set_nmi_pin(1);
+    }
+    install_trampoline_nmi(mmu_bank);
 }
 
 void mon_enter()
@@ -322,6 +359,20 @@ void mon_enter()
     if (z80_context.w.pc < 0x0100) {
         // Assume that the target is executing the bootloader in early boot stage
         z80_context.w.cleanup_code_location = 0x0200;
+    } else {
+        z80_context.w.cleanup_code_location = 0x0000;
+    }
+}
+
+void mon_enter_nmi()
+{
+    __read_from_sram(phys_addr(trampoline_nmi_work), &z80_context.w, sizeof(z80_context.w));
+
+    if (z80_context.w.pc < 0x0100) {
+        // Assume that the target is executing the bootloader in early boot stage
+        z80_context.w.cleanup_code_location = 0x0200;
+        // use the full trampoline instread of NMI trampoline
+        reinstall_trampoline();
     } else {
         z80_context.w.cleanup_code_location = 0x0000;
     }
