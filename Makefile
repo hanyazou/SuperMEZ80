@@ -29,6 +29,9 @@ BUILD_DIR := $(PJ_DIR)/$(shell echo build.$(BOARD).$(PIC) | tr A-Z a-z)
 CPM2_DIR := $(PJ_DIR)/cpm2
 HEXFILE := $(shell echo $(BOARD)-$(PIC).hex | tr A-Z a-z)
 
+SJASMPLUS_DIR=$(PJ_DIR)/tools/sjasmplus
+SJASMPLUS=$(SJASMPLUS_DIR)/sjasmplus
+
 FATFS_SRCS := $(FATFS_DIR)/source/ff.c
 DISK_SRCS := \
     $(DRIVERS_DIR)/diskio.c $(DRIVERS_DIR)/utils.c
@@ -69,14 +72,14 @@ $(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS)
         $(XC8) $(XC8_OPTS) $(DEFS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
         mv supermez80.hex $(HEXFILE)
 
-$(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80
+$(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(SJASMPLUS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        sjasmplus --lst=$*.lst --raw=$*.bin $< && \
+        $(SJASMPLUS) --lst=$*.lst --raw=$*.bin $< && \
         cat $*.bin | xxd -i > $@
 
-$(BUILD_DIR)/%.bin: $(CPM2_DIR)/%.asm $(BUILD_DIR)
+$(BUILD_DIR)/%.bin: $(CPM2_DIR)/%.asm $(BUILD_DIR) $(SJASMPLUS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        sjasmplus --raw=$*.bin $<
+        $(SJASMPLUS) --raw=$*.bin $<
 
 $(BUILD_DIR)/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
 	cd $(BUILD_DIR); \
@@ -116,3 +119,6 @@ test_build::
 
 clean::
 	rm -rf $(PJ_DIR)/build.*.*
+
+$(SJASMPLUS):
+	cd $(SJASMPLUS_DIR) && make clean && make

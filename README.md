@@ -56,15 +56,12 @@ https://twitter.com/Gazelle8087/status/1651571441727578112
 * macOSかLinuxでビルドできます
 * PIC18用のコンパイラ(XC8)を使います
 https://www.microchip.com/en-us/tools-resources/develop/mplab-xc-compilers/downloads-documentation#XC8
-* sjasmplusアセンブラを使います
-https://github.com/z00m128/sjasmplus
 * ソースコードを用意して、環境にあわせてMakefileを修正してください
 * make を実行すると、PIC に書き込み可能なbuild.<基板名>.<PIC種別>/<基板名>-<PIC種別>.hexが作成されます
 ```
 % git clone https://github.com/hanyazou/SuperMEZ80
 % cd SuperMEZ80
-% git submodule init
-% git submodule update
+% git submodule update --init --recursive
 % make BOARD=SUPERMEZ80_CPM PIC=18F47Q43
 
 % ls build.*.*/*.hex

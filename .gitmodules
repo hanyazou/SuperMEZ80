@@ -2,3 +2,6 @@
 	path = FatFs
 	url = https://github.com/hanyazou/FatFs.git
 	branch = supermez80
+[submodule "tools/sjasmplus"]
+	path = tools/sjasmplus
+	url = https://github.com/z00m128/sjasmplus.git
