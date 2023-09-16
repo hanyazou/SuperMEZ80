@@ -8,11 +8,16 @@ CONTAINERNAME=${IMAGENAME}-container
 
 main()
 {
+    setup
+
     if [ "$1" != "" ]; then
         case $1 in
         clean)
             remove_image
             exit 0
+            ;;
+        --clean)
+            remove_image
             ;;
         *)
             exit 1
@@ -31,6 +36,36 @@ main()
         docker start $CNTRID
         docker attach $CNTRID
     fi
+}
+
+setup()
+{
+    SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+    echo SCRIPT_DIR=${SCRIPT_DIR}
+    cd ${SCRIPT_DIR}
+    
+    case $(uname -s) in
+    Linux|Darwin)
+        WINPTY=
+        WD=${SCRIPT_DIR}
+        ;;
+    MINGW*)
+        WINPTY=winpty
+        HOME_mod=$(echo $USERPROFILE | sed -e 's|:\\|://|' -e 's|\\|/|g')
+        WD=$(echo ${SCRIPT_DIR} | sed -e "s|^${HOME}|${HOME_mod}|")
+        HOME=$HOME_mod
+        ;;
+    *)
+        echo Can not run on $(uname -s)
+        exit 1
+        ;;
+    esac
+
+    echo HOME=${HOME}
+    echo WD=${WD}
+
+    tr -d '\r' < ./run.sh > ./run_mod.sh && chmod +x ./run_mod.sh
+    tr -d '\r' < ./dot_bashrc > ./dot_bashrc_mod
 }
 
 cleanup_containers()
@@ -69,15 +104,15 @@ build_image()
 
 run_image()
 {
-    docker run  --privileged \
+    ${WINPTY} docker run  --privileged \
        --name ${CONTAINERNAME} -it \
-       --volume="$HOME/.netrc:/home/user/.netrc:ro" \
-       --volume="$HOME/.ssh:/home/user/.ssh:ro" \
-       --volume="$(pwd)/dot_bashrc:/home/user/.bashrc:rw" \
-       --volume="$(pwd)/run.sh:/home/user/run.sh:rw" \
-       --volume="$(pwd)/..:/home/user/workspace/github/SuperMEZ80:rw" \
+       --volume="${HOME}/.netrc:/home/user/.netrc:ro" \
+       --volume="${HOME}/.ssh:/home/user/.ssh:ro" \
+       --volume="${WD}/dot_bashrc_mod:/home/user/.bashrc:rw" \
+       --volume="${WD}/run_mod.sh:/home/user/run.sh:rw" \
+       --volume="${WD}/..:/home/user/workspace/github/SuperMEZ80:rw" \
        ${IMAGENAME} \
-       /bin/bash -c ./run.sh
+       //bin/bash -c ./run.sh
 }
 
 main $*
