@@ -135,3 +135,7 @@ $(SJASMPLUS):
 
 $(PP3_DIR)/pp3:
 	cd $(PP3_DIR) && make
+
+realclean:: clean
+	cd $(SJASMPLUS_DIR) && make clean
+	cd $(PP3_DIR) && make clean
