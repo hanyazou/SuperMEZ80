@@ -13,15 +13,28 @@ PIC := 18F47Q43
 #PIC := 18F47Q83
 #PIC := 18F47Q84
 #PIC := 18F57Q43
-XC8 := /Applications/microchip/xc8/v2.40/bin/xc8
+
+TEST_REPEAT := 10
+
+PJ_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+
+ifeq (,$(XC8))
+  ifneq (,$(wildcard /Applications/microchip/xc8/v2.40/bin/xc8))
+    XC8 := /Applications/microchip/xc8/v2.40/bin/xc8
+  else
+    ifneq (,$(wildcard /opt/microchip/xc8/v2.36/bin/xc8))
+      XC8 := /opt/microchip/xc8/v2.36/bin/xc8
+    else
+      $(error Missing XC8 complier. Please install XC8)
+    endif
+  endif
+endif
 XC8_OPTS := --chip=$(PIC) --std=c99
 #XC8 := /Applications/microchip/xc8/v2.40/bin/xc8-cc
 #XC8_OPTS := -mcpu=$(PIC) -std=c99
 
-PJ_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 PP3_DIR := $(PJ_DIR)/tools/a-p-prog/sw
 PP3_OPTS := -c $(PROGPORT) -s 100 -v 2 -r 30 -t $(PIC)
-TEST_REPEAT := 10
 
 FATFS_DIR := $(PJ_DIR)/FatFs
 DRIVERS_DIR := $(PJ_DIR)/drivers
@@ -78,9 +91,12 @@ $(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(SJASMPLUS)
         $(SJASMPLUS) --lst=$*.lst --raw=$*.bin $< && \
         cat $*.bin | xxd -i > $@
 
-$(BUILD_DIR)/%.bin: $(CPM2_DIR)/%.asm $(BUILD_DIR) $(SJASMPLUS)
+$(BUILD_DIR)/boot.bin: $(CPM2_DIR)/boot.asm $(BUILD_DIR) $(SJASMPLUS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(SJASMPLUS) --raw=$*.bin $<
+        $(SJASMPLUS) --raw=$@ $<
+$(BUILD_DIR)/bios.bin: $(CPM2_DIR)/bios.asm $(BUILD_DIR) $(SJASMPLUS)
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
+        $(SJASMPLUS) --raw=$@ $<
 
 $(BUILD_DIR)/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
 	cd $(BUILD_DIR); \
