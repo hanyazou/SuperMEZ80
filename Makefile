@@ -17,11 +17,12 @@ XC8 := /Applications/microchip/xc8/v2.40/bin/xc8
 XC8_OPTS := --chip=$(PIC) --std=c99
 #XC8 := /Applications/microchip/xc8/v2.40/bin/xc8-cc
 #XC8_OPTS := -mcpu=$(PIC) -std=c99
-#PP3_DIR := $(PJ_DIR)/../a-p-prog/sw
-PP3_OPTS := -c $(PROGPORT) -s 1700 -v 2 -r 30 -t $(PIC)
-TEST_REPEAT := 10
 
 PJ_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+PP3_DIR := $(PJ_DIR)/tools/a-p-prog/sw
+PP3_OPTS := -c $(PROGPORT) -s 100 -v 2 -r 30 -t $(PIC)
+TEST_REPEAT := 10
+
 FATFS_DIR := $(PJ_DIR)/FatFs
 DRIVERS_DIR := $(PJ_DIR)/drivers
 SRC_DIR := $(PJ_DIR)/src
@@ -87,15 +88,8 @@ $(BUILD_DIR)/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
 	dd if=boot.bin of=drivea.dsk bs=128 seek=0  count=1 conv=notrunc; \
 	dd if=bios.bin of=drivea.dsk bs=128 seek=45 count=6 conv=notrunc
 
-upload: $(BUILD_DIR)/$(HEXFILE)
-	if [ .$(PP3_DIR) != . ]; then \
-            echo using $(PP3_DIR)/pp3; \
-            cd $(PP3_DIR); \
-            ./pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE); \
-        else \
-            echo using `which pp3`; \
-            pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE); \
-        fi
+upload: $(BUILD_DIR)/$(HEXFILE) $(PP3_DIR)/pp3
+	cd $(PP3_DIR) && ./pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE)
 
 test::
 	cd test && PORT=$(CONSPORT) ./test.sh
@@ -122,3 +116,6 @@ clean::
 
 $(SJASMPLUS):
 	cd $(SJASMPLUS_DIR) && make clean && make
+
+$(PP3_DIR)/pp3:
+	cd $(PP3_DIR) && make
