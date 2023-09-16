@@ -4,3 +4,4 @@ build
 build.*
 docker/dot_bashrc_mod
 docker/run_mod.sh
+docker/commands.sh

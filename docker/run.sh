@@ -14,4 +14,8 @@ echo "    or"
 echo "    make BOARD=EMUZ80_57Q PIC=18F57Q43"
 echo
 
-exec /bin/bash
+if [ "$(cat ~/commands.sh)" == "" ]; then
+    exec /bin/bash
+else
+    source ~/commands.sh
+fi

@@ -10,19 +10,33 @@ main()
 {
     setup
 
-    if [ "$1" != "" ]; then
+    i=1
+    args=$#
+    while [ $i -le $args ]; do
         case $1 in
         clean)
             remove_image
             exit 0
             ;;
+        --)
+            shift
+            break
+            ;;
         --clean)
             remove_image
+            shift
             ;;
         *)
-            exit 1
+            break
             ;;
         esac
+    done
+
+    if [ "$*" != "" ]; then
+        echo $* | tr -d '\r' > ${SCRIPT_DIR}/commands.sh
+        echo Run \'$(cat commands.sh)\' in build environment
+    else
+        echo > ${SCRIPT_DIR}/commands.sh
     fi
 
     IMGID=$(image_id)
@@ -110,6 +124,7 @@ run_image()
        --volume="${HOME}/.ssh:/home/user/.ssh:ro" \
        --volume="${WD}/dot_bashrc_mod:/home/user/.bashrc:rw" \
        --volume="${WD}/run_mod.sh:/home/user/run.sh:rw" \
+       --volume="${WD}/commands.sh:/home/user/commands.sh:rw" \
        --volume="${WD}/..:/home/user/workspace/github/SuperMEZ80:rw" \
        ${IMAGENAME} \
        //bin/bash -c ./run.sh
