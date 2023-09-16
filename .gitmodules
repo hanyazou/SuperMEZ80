@@ -1,0 +1,4 @@
+[submodule "FatFs"]
+	path = FatFs
+	url = https://github.com/hanyazou/FatFs.git
+	branch = supermez80

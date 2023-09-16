@@ -22,7 +22,7 @@ PP3_OPTS := -c $(PROGPORT) -s 1700 -v 2 -r 30 -t $(PIC)
 TEST_REPEAT := 10
 
 PJ_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-FATFS_DIR := $(PJ_DIR)/../FatFs
+FATFS_DIR := $(PJ_DIR)/FatFs
 DRIVERS_DIR := $(PJ_DIR)/drivers
 SRC_DIR := $(PJ_DIR)/src
 BUILD_DIR := $(PJ_DIR)/$(shell echo build.$(BOARD).$(PIC) | tr A-Z a-z)
