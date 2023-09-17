@@ -13,21 +13,38 @@ PIC := 18F47Q43
 #PIC := 18F47Q83
 #PIC := 18F47Q84
 #PIC := 18F57Q43
-XC8 := /Applications/microchip/xc8/v2.40/bin/xc8
-XC8_OPTS := --chip=$(PIC) --std=c99
-#XC8 := /Applications/microchip/xc8/v2.40/bin/xc8-cc
-#XC8_OPTS := -mcpu=$(PIC) -std=c99
-#PP3_DIR := $(PJ_DIR)/../a-p-prog/sw
-PP3_OPTS := -c $(PROGPORT) -s 1700 -v 2 -r 30 -t $(PIC)
+
 TEST_REPEAT := 10
 
 PJ_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-FATFS_DIR := $(PJ_DIR)/../FatFs
+
+ifeq (,$(XC8))
+  ifneq (,$(wildcard /Applications/microchip/xc8/v2.40/bin/xc8))
+    XC8 := /Applications/microchip/xc8/v2.40/bin/xc8
+  else
+    ifneq (,$(wildcard /opt/microchip/xc8/v2.36/bin/xc8))
+      XC8 := /opt/microchip/xc8/v2.36/bin/xc8
+    else
+      $(error Missing XC8 complier. Please install XC8)
+    endif
+  endif
+endif
+XC8_OPTS := --chip=$(PIC) --std=c99
+#XC8 := /Applications/microchip/xc8/v2.40/bin/xc8-cc
+#XC8_OPTS := -mcpu=$(PIC) -std=c99
+
+PP3_DIR := $(PJ_DIR)/tools/a-p-prog/sw
+PP3_OPTS := -c $(PROGPORT) -s 100 -v 2 -r 30 -t $(PIC)
+
+FATFS_DIR := $(PJ_DIR)/FatFs
 DRIVERS_DIR := $(PJ_DIR)/drivers
 SRC_DIR := $(PJ_DIR)/src
 BUILD_DIR := $(PJ_DIR)/$(shell echo build.$(BOARD).$(PIC) | tr A-Z a-z)
 CPM2_DIR := $(PJ_DIR)/cpm2
 HEXFILE := $(shell echo $(BOARD)-$(PIC).hex | tr A-Z a-z)
+
+SJASMPLUS_DIR=$(PJ_DIR)/tools/sjasmplus
+SJASMPLUS=$(SJASMPLUS_DIR)/sjasmplus
 
 FATFS_SRCS := $(FATFS_DIR)/source/ff.c
 DISK_SRCS := \
@@ -69,14 +86,17 @@ $(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS)
         $(XC8) $(XC8_OPTS) $(DEFS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
         mv supermez80.hex $(HEXFILE)
 
-$(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80
+$(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(SJASMPLUS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        sjasmplus --lst=$*.lst --raw=$*.bin $< && \
+        $(SJASMPLUS) --lst=$*.lst --raw=$*.bin $< && \
         cat $*.bin | xxd -i > $@
 
-$(BUILD_DIR)/%.bin: $(CPM2_DIR)/%.asm $(BUILD_DIR)
+$(BUILD_DIR)/boot.bin: $(CPM2_DIR)/boot.asm $(BUILD_DIR) $(SJASMPLUS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        sjasmplus --raw=$*.bin $<
+        $(SJASMPLUS) --raw=$@ $<
+$(BUILD_DIR)/bios.bin: $(CPM2_DIR)/bios.asm $(BUILD_DIR) $(SJASMPLUS)
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
+        $(SJASMPLUS) --raw=$@ $<
 
 $(BUILD_DIR)/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
 	cd $(BUILD_DIR); \
@@ -84,15 +104,8 @@ $(BUILD_DIR)/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
 	dd if=boot.bin of=drivea.dsk bs=128 seek=0  count=1 conv=notrunc; \
 	dd if=bios.bin of=drivea.dsk bs=128 seek=45 count=6 conv=notrunc
 
-upload: $(BUILD_DIR)/$(HEXFILE)
-	if [ .$(PP3_DIR) != . ]; then \
-            echo using $(PP3_DIR)/pp3; \
-            cd $(PP3_DIR); \
-            ./pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE); \
-        else \
-            echo using `which pp3`; \
-            pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE); \
-        fi
+upload: $(BUILD_DIR)/$(HEXFILE) $(PP3_DIR)/pp3
+	cd $(PP3_DIR) && ./pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE)
 
 test::
 	cd test && PORT=$(CONSPORT) ./test.sh
@@ -116,3 +129,13 @@ test_build::
 
 clean::
 	rm -rf $(PJ_DIR)/build.*.*
+
+$(SJASMPLUS):
+	cd $(SJASMPLUS_DIR) && make clean && make
+
+$(PP3_DIR)/pp3:
+	cd $(PP3_DIR) && make
+
+realclean:: clean
+	cd $(SJASMPLUS_DIR) && make clean
+	cd $(PP3_DIR) && make clean

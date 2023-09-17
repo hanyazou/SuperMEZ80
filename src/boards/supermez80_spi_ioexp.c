@@ -37,4 +37,4 @@
 
 #define SPI_PREFIX SPI_IOEXP
 #include <SPI.c>
-#include <mcp23S08.c>
+#include <mcp23s08.c>

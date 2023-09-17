@@ -51,33 +51,119 @@ I/O expanderなしでSD Card slotのためのSPIと、Z80のアドレスバスA0
 https://twitter.com/Gazelle8087/status/1651571441727578112  
 ビルドパラメータ: BOARD=EMUZ80_57Q PIC=18F57Q43
 
-## ファームウェア
+## ビルド
+
+### ビルドの概要
 
 * macOSかLinuxでビルドできます
+* Windowsの場合、WSL2(Windows Subsystem for Linux)であればLinuxと同じ手順でビルドできます
 * PIC18用のコンパイラ(XC8)を使います
-https://www.microchip.com/en-us/tools-resources/develop/mplab-xc-compilers/downloads-documentation#XC8
-* sjasmplusアセンブラを使います
-https://github.com/z00m128/sjasmplus
-* FatFsライブラリが必要です
-https://github.com/hanyazou/FatFs
-* ソースコードを用意して、環境にあわせてMakefileを修正してください
-* make を実行すると、PIC に書き込み可能なbuild.<基板名>.<PIC種別>/<基板名>-<PIC種別>.hexが作成されます
+* 以下のように make を実行すると、
+PIC に書き込み可能なbuild.<基板名>.<PIC種別>/<基板名>-<PIC種別>.hexが作成されます
 ```
-% git clone https://github.com/hanyazou/FatFs
 % git clone https://github.com/hanyazou/SuperMEZ80
 % cd SuperMEZ80
+% git submodule update --init --recursive
 % make BOARD=SUPERMEZ80_CPM PIC=18F47Q43
 
 % ls build.*.*/*.hex
 -rw-r--r--  1 hanyazou  staff  218386 Aug 29 17:45 build.supermez80_cpm.18f47q43/supermez80_cpm-18f47q43.hex
 ```
 
+### Linux
+
+ubuntu などの代表的なディストリビューションでビルドできます。
+あらかじめ以下のようにして必要なパッケージをインストールしてください。
+
+```
+$ sudo apt update
+$ sudo apt install build-essential curl xxd
+```
+
+MICROCHIPの
+[Downloads Archive](https://www.microchip.com/en-us/tools-resources/archives/mplab-ecosystem)
+からXC8コンパイラをインストールしてください。
+
+開発および動作確認には、xc8 v2.36 を使用しています。
+[xc8-v2.36-full-install-linux-x64-installer.run](https://ww1.microchip.com/downloads/aemDocuments/documents/DEV/ProductDocuments/SoftwareTools/xc8-v2.36-full-install-linux-x64-installer.run)
+をダウンロードして、以下のように実行し、表示される手順に従ってインストールしてください。
+インストールの詳細については
+[Installing MPLAB® XC8 C Compiler](https://microchipdeveloper.com/xc8:installation)
+を参照してください。
+
+```
+$ chmod +x xc8-v2.36-full-install-linux-x64-installer.run
+$ sudo ./xc8-v2.36-full-install-linux-x64-installer.run
+```
+
+### Mac
+
+XcodeやHome brewなどの一般的な開発環境に加えて、
+MICROCHIPの
+[Downloads Archive](https://www.microchip.com/en-us/tools-resources/archives/mplab-ecosystem)
+からXC8コンパイラをインストールしてください。
+
+開発および動作確認には、xc8 v2.40 を使用しています。
+[xc8-v2.40-full-install-macos-x64-installer.dmg](https://ww1.microchip.com/downloads/aemDocuments/documents/DEV/ProductDocuments/SoftwareTools/xc8-v2.40-full-install-macos-x64-installer.dmg)
+をダウンロードして、インストールしてください。
+インストールの詳細については
+[Installing MPLAB® XC8 C Compiler](https://microchipdeveloper.com/xc8:installation)
+を参照してください。
+
+### Windows
+
+SuperMEZ80のビルドは、UNIX/LinuxスタイルのMakefileによって行われています。
+Windowsに、WSL(Windows Subsystem for Linux)をインストールすることにより、
+LinuxやMacと同じ手順でファームウェアをビルドすることができます。
+
+<img src="imgs/windows+wsl.png" width="50%">
+
+管理者権限で wsl --install を実行すると
+デフォルトで WSL2 ubuntu がインストールされます。
+追加の設定などは必要ありません。
+[WSL を使用して Windows に Linux をインストールする方法](https://learn.microsoft.com/ja-jp/windows/wsl/install)
+に従ってWSLをインストールしてください。
+
+WSLでmakeを実行してファームウェアを作成すると、
+\\\\wsl.localhost\\Ubuntu\\home\\hanyazou\\SuperMEZ80\\build...のあたりに.hexファイルができます。
+("hanyazou"の部分は、WSLインストール時に指定したLinuxのユーザ名になります)
+\\\\wsl.localhost\\Ubuntuを適当なネットワークドライブに割り当てておくと良いでしょう。
+
+<img src="imgs/wsl-home-build-hex.png" width="50%">
+
+### Docker
+
+[Docker](https://www.docker.com/)を使用して、
+ビルド時のホスト環境の違いによる影響を最小限にすることができます。
+
+以下のようにdocker/build_env.shスクリプトを使用してmakeを実行するとubuntu 22.04のコンテナを
+使ってビルドを実行します。
+
+```
+$ ./docker/build_env.sh make realclean test_build
+```
+
+初回実行時は、
+ファームウェアのビルドの前にubuntuイメージの構築とXC8のインストールが行われます。
+コマンドを実行した端末にXC8のライセンス条件などが表示されるのでよく読んで
+Y/Nなどを入力してください。
+
 ## PICプログラムの書き込み
-EMUZ80技術資料8ページにしたがってPICにファームウェアを書き込んでください。
+以下の書き込みツールのいずれかを使用して
+ビルドしたファームウェアをEMUZ80上のPICマイコンに書き込みます。
 
-またはArduino UNOを用いてPICを書き込みます。  
+* PICkit
+PICマイコンのMICROCHIP社純正ツールです。EMUZ80で使用するPIC 18Fに書き込むためには、PICkit 4以降の比較的新しいものが必要です。
+（PICkit 2及び3は対応していません）
+https://www.microchip.com/en-us/development-tool/PG164140
+* PICkit minus  
+PICkit 2及び3を使ってPIC 18Fに書き込むことができるソフトウェアです。  
+http://kair.us/projects/pickitminus/
+* Arduino-PIC-Programmer  
+Arduino UNOを用いてPICを書き込みます。  
 https://github.com/satoshiokue/Arduino-PIC-Programmer
-
+* a-p-prog  
+上記Arduino-PIC-Programmerの元になったツールです。
 make upload を実行すると、こちらの a-p-prog を利用してPICにファームウェアを書き込みます。  
 https://github.com/hanyazou/a-p-prog
 
@@ -127,7 +213,7 @@ https://github.com/udo-munk/z80pack
 | ---            | ---     | ---          | ---          | ---          | ---      | ---    | ---        |
 | SuperMEZ80-SPI | 512KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
 | SuperMEZ80-CPM | 256KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
-| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | ok     | cpm-v2.2.0 |
+| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | ok     | cpm-v2.4.0 |
 | MEZ80SD        | 64KB    | available    | ok           | n/a          | n/a      | n/a    | cpm-v1.0.0 |
 
 ## 謝辞
