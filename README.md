@@ -152,9 +152,9 @@ Y/Nなどを入力してください。
 以下の書き込みツールのいずれかを使用して
 ビルドしたファームウェアをEMUZ80上のPICマイコンに書き込みます。
 
-* PICkit
+* PICkit  
 PICマイコンのMICROCHIP社純正ツールです。EMUZ80で使用するPIC 18Fに書き込むためには、PICkit 4以降の比較的新しいものが必要です。
-（PICkit 2及び3は対応していません）
+（PICkit 2及び3は対応していません）  
 https://www.microchip.com/en-us/development-tool/PG164140
 * PICkit minus  
 PICkit 2及び3を使ってPIC 18Fに書き込むことができるソフトウェアです。  
