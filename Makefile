@@ -1,3 +1,5 @@
+-include .config
+
 PROGPORT := /dev/tty.usbmodem1444301
 CONSPORT := /dev/cu.usbserial-144440
 BOARD := SUPERMEZ80_SPI
