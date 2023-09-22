@@ -213,6 +213,8 @@ extern char *(*board_name_hook)(void);
 #define board_name() (*board_name_hook)()
 extern void (*board_sys_init_hook)(void);
 #define board_sys_init() (*board_sys_init_hook)()
+extern void (*board_disk_init_hook)(void);
+#define board_disk_init() (*board_disk_init_hook)()
 extern void (*board_bus_master_hook)(int enable);
 #define board_bus_master(enable) (*board_bus_master_hook)(enable)
 extern void (*board_start_z80_hook)(void);

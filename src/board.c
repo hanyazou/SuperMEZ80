@@ -25,6 +25,7 @@
 
 char *(*board_name_hook)(void) = NULL;
 void (*board_sys_init_hook)(void) = NULL;
+void (*board_disk_init_hook)(void) = NULL;
 void (*board_bus_master_hook)(int) = NULL;
 void (*board_start_z80_hook)(void) = NULL;
 void (*board_set_bank_pins_hook)(uint32_t) = NULL;

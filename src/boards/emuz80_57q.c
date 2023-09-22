@@ -104,7 +104,10 @@ static void emuz80_57q_sys_init()
 
     // Initialize memory bank
     set_bank_pins(0x00000);
+}
 
+static void emuz80_57q_disk_init()
+{
     //
     // Initialize SD Card
     //
@@ -225,6 +228,7 @@ void board_init()
 
     board_name_hook = emuz80_57q_name;
     board_sys_init_hook = emuz80_57q_sys_init;
+    board_disk_init_hook = emuz80_57q_disk_init;
     board_bus_master_hook = emuz80_57q_bus_master;
     board_start_z80_hook = emuz80_57q_start_z80;
     board_set_bank_pins_hook = emuz80_57q_set_bank_pins;
