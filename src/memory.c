@@ -167,7 +167,7 @@ static void write_to_sram_low_addr(uint32_t dest, const void *buf, unsigned int 
     int bank = phys_addr_bank(dest);
 
     #ifdef CPM_MEMCPY_DEBUG
-    printf("%22s: addr=  %04X, len=%4u\n\r", __func__, addr, len);
+    printf("%22s: addr=  %04X, len=%4u, gap=%04X\n\r", __func__, addr, len, addr_gap_mask);
     #endif
 
     if (!(addr & addr_gap_mask || (addr + len - 1) & addr_gap_mask)) {
@@ -175,7 +175,9 @@ static void write_to_sram_low_addr(uint32_t dest, const void *buf, unsigned int 
         board_write_to_sram(addr, (uint8_t*)buf, len);
         return;
     }
-    io_invoke_target_cpu_prepare(&saved_io_status);
+    if (io_invoke_target_cpu_prepare(&saved_io_status) != 0) {
+        return;
+    }
     while (0 < len) {
         n = UTIL_MIN(memcpy_on_target_buf_size, len);
         __memcpy_on_target(addr, memcpy_on_target_buf, (uint8_t*)buf, n, bank);
@@ -225,7 +227,9 @@ static void read_from_sram_low_addr(uint32_t src, void *buf, unsigned int len)
         board_read_from_sram(addr, (uint8_t*)buf, len);
         return;
     }
-    io_invoke_target_cpu_prepare(&saved_io_status);
+    if (io_invoke_target_cpu_prepare(&saved_io_status) != 0) {
+        return;
+    }
     while (0 < len) {
         n = UTIL_MIN(memcpy_on_target_buf_size, len);
         __memcpy_on_target(memcpy_on_target_buf, addr, (uint8_t*)buf, n, bank);

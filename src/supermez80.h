@@ -163,7 +163,7 @@ extern int cpm_trsect_to_lba(unsigned int drive, unsigned int track, unsigned in
                              uint32_t *lba);
 extern int cpm_trsect_from_lba(unsigned int drive, unsigned int *track, unsigned int *sector,
                                uint32_t lba);
-extern void io_invoke_target_cpu_prepare(int *saved_status);
+extern int io_invoke_target_cpu_prepare(int *saved_status);
 extern int io_invoke_target_cpu(const mem_region_t *inparams, unsigned int ninparams,
                                 const mem_region_t *outparams, unsigned int noutparams, int bank);
 extern void io_invoke_target_cpu_teardown(int *saved_status);
