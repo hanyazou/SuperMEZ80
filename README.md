@@ -213,8 +213,8 @@ https://github.com/udo-munk/z80pack
 | ---            | ---     | ---          | ---          | ---          | ---      | ---    | ---        |
 | SuperMEZ80-SPI | 512KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
 | SuperMEZ80-CPM | 256KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
-| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | ok     | cpm-v2.4.0 |
-| MEZ80SD        | 64KB    | available    | ok           | n/a          | n/a      | n/a    | cpm-v1.0.0 |
+| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | ok     | cpm-v2.5.1 |
+| MEZ80SD        | 64KB    | available    | ok           | n/a          | n/a      | n/a    | cpm-v2.5.1 |
 
 ## 謝辞
 シンプルで美しいEMUZ80を開発された電脳伝説さんに感謝します。  
