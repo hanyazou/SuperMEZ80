@@ -163,7 +163,7 @@ extern int cpm_trsect_to_lba(unsigned int drive, unsigned int track, unsigned in
                              uint32_t *lba);
 extern int cpm_trsect_from_lba(unsigned int drive, unsigned int *track, unsigned int *sector,
                                uint32_t lba);
-extern void io_invoke_target_cpu_prepare(int *saved_status);
+extern int io_invoke_target_cpu_prepare(int *saved_status);
 extern int io_invoke_target_cpu(const mem_region_t *inparams, unsigned int ninparams,
                                 const mem_region_t *outparams, unsigned int noutparams, int bank);
 extern void io_invoke_target_cpu_teardown(int *saved_status);
@@ -213,6 +213,8 @@ extern char *(*board_name_hook)(void);
 #define board_name() (*board_name_hook)()
 extern void (*board_sys_init_hook)(void);
 #define board_sys_init() (*board_sys_init_hook)()
+extern void (*board_disk_init_hook)(void);
+#define board_disk_init() (*board_disk_init_hook)()
 extern void (*board_bus_master_hook)(int enable);
 #define board_bus_master(enable) (*board_bus_master_hook)(enable)
 extern void (*board_start_z80_hook)(void);

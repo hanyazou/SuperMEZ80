@@ -96,6 +96,8 @@
 
 #include "emuz80_common.c"
 
+static void supermez80_spi_set_nmi_pin(uint8_t v);
+
 static char *supermez80_spi_name()
 {
     if (mcp23s08_is_alive(MCP23S08_ctx)) {
@@ -137,6 +139,9 @@ static void supermez80_spi_sys_init()
     // Initialize SPI I/O expander MCP23S08
     //
     mcp23s08_probe(MCP23S08_ctx, SPI_CLOCK_2MHZ, 0 /* address */);
+    if (mcp23s08_is_alive(MCP23S08_ctx)) {
+        board_set_nmi_pin_hook = supermez80_spi_set_nmi_pin;
+    }
 
     mcp23s08_write(MCP23S08_ctx, GPIO_CS0, 1);
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_CS0, MCP23S08_PINMODE_OUTPUT);
@@ -160,7 +165,10 @@ static void supermez80_spi_sys_init()
     #ifdef GPIO_BANK2
     mcp23s08_pinmode(MCP23S08_ctx, GPIO_BANK2, MCP23S08_PINMODE_OUTPUT);
     #endif
+}
 
+static void supermez80_spi_disk_init()
+{
     //
     // Initialize SD Card
     //
@@ -402,6 +410,7 @@ void board_init()
 
     board_name_hook = supermez80_spi_name;
     board_sys_init_hook = supermez80_spi_sys_init;
+    board_disk_init_hook = supermez80_spi_disk_init;
     board_bus_master_hook = supermez80_spi_bus_master;
     board_start_z80_hook = supermez80_spi_start_z80;
     board_set_bank_pins_hook = supermez80_spi_set_bank_pins;
@@ -410,7 +419,6 @@ void board_init()
     board_wait_io_event_hook = supermez80_spi_wait_io_event;
     board_clear_io_event_hook = supermez80_spi_clear_io_event;
 
-    board_set_nmi_pin_hook   = supermez80_spi_set_nmi_pin;
     board_set_wait_pin_hook  = supermez80_spi_set_wait_pin;
 }
 

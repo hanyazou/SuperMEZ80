@@ -118,6 +118,7 @@ void sys_init()
 
 int disk_init(void)
 {
+    board_disk_init();
     if (f_mount(&fs, "0://", 1) != FR_OK) {
         printf("Failed to mount SD Card.\n\r");
         return -2;

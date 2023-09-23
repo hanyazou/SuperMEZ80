@@ -778,19 +778,32 @@ int io_wait_write(uint8_t wait_io_addr, uint8_t *result_io_data)
     return result;
 }
 
-void io_invoke_target_cpu_prepare(int *saved_status)
+int io_invoke_target_cpu_prepare(int *saved_status)
 {
+    static int8_t available = -1;
     static const unsigned char dummy_rom[] = {
         // Dummy program, infinite HALT loop that do nothing
         #include "dummy.inc"
     };
+
+    if (available != 1) {
+        if (available == 0) {
+            return -1;
+        }
+        if (!is_board_nmi_available() && !is_board_int_available()) {
+            printf("WARNING: %s: no interrupts line available\n\r", __func__);
+            available = 0;
+            return -1;
+        }
+        available = 1;
+    }
 
     assert(io_stat() == IO_STAT_NOT_STARTED ||
            io_stat() == IO_STAT_STOPPED || io_stat() == IO_STAT_MONITOR);
 
     *saved_status = io_stat();
     if (io_stat() == IO_STAT_MONITOR) {
-        return;
+        return 0;
     }
 
     if (io_stat() == IO_STAT_NOT_STARTED) {
@@ -829,7 +842,7 @@ void io_invoke_target_cpu_prepare(int *saved_status)
         mon_enter();
     io_stat_ = IO_STAT_MONITOR;
 
-    return;
+    return 0;
 }
 
 int io_invoke_target_cpu(const mem_region_t *inparams, unsigned int ninparams,

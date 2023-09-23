@@ -194,7 +194,10 @@ static void supermez80_cpm_sys_init()
     // Initialize memory bank
     bank_pins = 0;
     __supermez80_cpm_set_bank_pins(bank_pins);
+}
 
+static void supermez80_cpm_disk_init()
+{
     //
     // Initialize SD Card
     //
@@ -486,6 +489,7 @@ void board_init()
 
     board_name_hook = supermez80_cpm_name;
     board_sys_init_hook = supermez80_cpm_sys_init;
+    board_disk_init_hook = supermez80_cpm_disk_init;
     board_bus_master_hook = supermez80_cpm_bus_master;
     board_start_z80_hook = supermez80_cpm_start_z80;
     board_set_bank_pins_hook = supermez80_cpm_set_bank_pins;
