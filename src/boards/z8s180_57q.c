@@ -23,15 +23,15 @@
 
 #define BOARD_DEPENDENT_SOURCE
 
-#include <supermez80.h>
+#include "../supermez80.h"
 #include <stdio.h>
-#include <SDCard.h>
-#include <mcp23s08.h>
-#include <picregister.h>
+#include "../../drivers/SDCard.h"
+#include "../../drivers/mcp23s08.h"
+#include "../../drivers/picregister.h"
 
 #define SPI_PREFIX      SPI_SD
 #define SPI_HW_INST     SPI1
-#include <SPI.h>
+#include "../../drivers/SPI.h"
 
 #define Z80_IOREQ       A0
 #define Z80_MEMRQ       A1
@@ -53,7 +53,8 @@
 
 #define Z80_WR          C5
 #define Z80_RESET       E1
-#define Z80_NMI         E2
+//#define Z80_NMI         E2
+#define Z80_INT         E2
 
 #define SRAM_CE         Z80_MEMRQ
 #define SRAM_OE         Z80_RD
@@ -66,20 +67,24 @@
 
 static char *emuz80_57q_name()
 {
-    return "EMUZ80-57Q";
+    return "Z8S180-57Q";
 }
 
 static void emuz80_57q_sys_init()
 {
     emuz80_common_sys_init();
 
+    // INT0
+    LAT(Z80_INT) = 1;           // deactivate NMI
+    TRIS(Z80_INT) = 0;          // Set as output
+
     // Address bus
     LAT(Z80_ADDR_H) = 0x00;
     TRIS(Z80_ADDR_H) = 0x00;    // Set as output
 
-    // RAM-CS2
-    LAT(C7) = 1;                // Set as output
-    TRIS(C7) = 0;               // Always active
+    // RAM-CS2 : JP6 need to close, if you use 128KB RAM
+//    LAT(C7) = 1;                // Set as output
+//    TRIS(C7) = 0;               // Always active
 
     // /CE
     LAT(SRAM_CE) = 1;
@@ -151,26 +156,41 @@ static void emuz80_57q_start_z80(void)
 {
     emuz80_common_start_z80();
 
+#ifndef Z80_CLK_HZ
+    ANSELA3 = 0;		// Disable analog function
+    RA3PPS = 0x3f;		// RA3 asign NCO1
+    TRISA3 = 0;			// output
+    NCO1INC = 5033;		// Serial clock 153.6kHz(9600*16)
+    NCO1CLK = 0x00;		// Clock source Fosc
+    NCO1PFM = 0;		// FDC mode
+    NCO1OUT = 1;		// NCO output enable
+    NCO1EN = 1;			// NCO enable
+#endif
     //
-    // CLC1: /IOREQ -> /WAIT
+    // CLC1: /IOREQ -> /WAIT( if IO_ADR >= 0x40 )
     //
+    CLCIN0PPS = 0x00;               // CLCIN0PPS = RA0(/IORQ)
+    CLCIN2PPS = 0x0e;               // CLCIN2PPS = RB6(A6)
+
     CLCSELECT = 0;                  // Select CLC1
     CLCnCON = 0x00;                 // Disable CLC
 
     // input data selection
-    CLCnSEL0 = 0;                   // /IORQ is connected to input 0
-    CLCnSEL1 = 127;                 // NC
+    CLCnSEL0 = 0;                   // CLCIN0PPS: /IORQ is connected to input 0
+    CLCnSEL1 = 2        ;           // CLCIN2PPS: A6(RB6) is connected to input 1
     CLCnSEL2 = 127;                 // NC
     CLCnSEL3 = 127;                 // NC
 
     // data gating
     CLCnGLS0 = 0x1;                 // Input 0 is inverted and gated into g1
-    CLCnGLS1 = 0x0;                 // NC
+    CLCnGLS1 = 0x8;                 // Input 1 is gated into g2
     CLCnGLS2 = 0x0;                 // NC
     CLCnGLS3 = 0x0;                 // NC
 
     // select gate output polarities
-    CLCnPOL = 0x82;                 // Inverted the CLC output
+    CLCnPOL = 0x80;                 // Inverted the CLC output
+                                    // g1(DFF clk) is not inverted
+                                    // g2(DFF input) is not inverted
     CLCnCON = 0x8c;                 // Enable, 1-Input D FF with S and R, falling edge inturrupt
 
     CLCDATA = 0x0;                  // Clear all CLC outs
@@ -236,5 +256,5 @@ void board_init()
     board_set_wait_pin_hook  = emuz80_57q_set_wait_pin;
 }
 
-#include <pic18f47q43_spi.c>
-#include <SDCard.c>
+#include "../../drivers/pic18f47q43_spi.c"
+#include "../../drivers/SDCard.c"
