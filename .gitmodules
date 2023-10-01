@@ -8,3 +8,6 @@
 [submodule "tools/a-p-prog"]
 	path = tools/a-p-prog
 	url = https://github.com/hanyazou/a-p-prog.git
+[submodule "tools/zasm"]
+	path = tools/zasm
+	url = https://github.com/Megatokio/zasm.git
