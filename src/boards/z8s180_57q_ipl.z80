@@ -1,5 +1,5 @@
 	page	0
-	cpu	Z180
+	.z180
 
 ;	CP/M 2.2 boot-loader for Z80-Simulator
 ;
@@ -69,7 +69,7 @@ CLOCK_2		equ	0	; CPU clock = 2.0 x external clock
 ;
 BOOT:
 	JP	COLD
-        DB	128 - 3 dup(0)
+	DEFS	128 - $, 0
 ;
 ERRMSG:	DB	"BOOT: error booting"
 	DB	13,10,0
