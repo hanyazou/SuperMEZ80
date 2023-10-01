@@ -38,8 +38,7 @@ MON_ENTER_NMI	EQU	175	; enter monitor mode for NMI
 ;
 ;	Note: The condition bits are not affected by OUT, NOP, JP and JR instructions
 ;
-	ORG	0		; reset vector
-TGTINV_GATE	EQU	$
+TGTINV_GATE	EQU	0000h	; reset vector
 
 ;
 ;	NMI interrupt vector

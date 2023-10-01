@@ -413,19 +413,19 @@ DSTL:	DEFB	0		;disk I/O destination address low
 ;	scratch ram area for BDOS use
 ;
 BEGDAT	EQU	$		;beginning of data area
-DIRBF:	DEFS	128		;scratch directory area
-ALL00:	DEFS	31		;allocation vector 0
-ALL01:	DEFS	31		;allocation vector 1
-ALL02:	DEFS	31		;allocation vector 2
-ALL03:	DEFS	31		;allocation vector 3
-ALLHD1:	DEFS	255		;allocation vector harddisk 1
-ALLHD2:	DEFS	255		;allocation vector harddisk 2
-CHK00:	DEFS	16		;check vector 0
-CHK01:	DEFS	16		;check vector 1
-CHK02:	DEFS	16		;check vector 2
-CHK03:	DEFS	16		;check vector 3
-CHKHD1:	DEFS	0		;check vector harddisk 1
-CHKHD2:	DEFS	0		;check vector harddisk 2
+DIRBF:	DEFS	128,0		;scratch directory area
+ALL00:	DEFS	31,0		;allocation vector 0
+ALL01:	DEFS	31,0		;allocation vector 1
+ALL02:	DEFS	31,0		;allocation vector 2
+ALL03:	DEFS	31,0		;allocation vector 3
+ALLHD1:	DEFS	255,0		;allocation vector harddisk 1
+ALLHD2:	DEFS	255,0		;allocation vector harddisk 2
+CHK00:	DEFS	16,0		;check vector 0
+CHK01:	DEFS	16,0		;check vector 1
+CHK02:	DEFS	16,0		;check vector 2
+CHK03:	DEFS	16,0		;check vector 3
+CHKHD1:	DEFS	0,0		;check vector harddisk 1
+CHKHD2:	DEFS	0,0		;check vector harddisk 2
 ;
 ENDDAT	EQU	$		;end of data area
 DATSIZ	EQU	$-BEGDAT	;size of data area
