@@ -6,6 +6,7 @@ CONSPORT ?= /dev/cu.usbserial-144440
 BOARD ?= SUPERMEZ80_SPI
 #BOARD ?= SUPERMEZ80_CPM
 #BOARD ?= EMUZ80_57Q
+#BOARD ?= Z8S180_57Q
 
 PIC ?= 18F47Q43
 #PIC ?= 18F47Q83
@@ -74,6 +75,9 @@ endif
 ifeq ($(BOARD),EMUZ80_57Q)
 SRCS += $(SRC_DIR)/boards/emuz80_57q.c
 endif
+ifeq ($(BOARD),Z8S180_57Q)
+SRCS += $(SRC_DIR)/boards/z8s180_57q.c
+endif
 
 DEFS += -DSUPERMEZ80_CPM_MMU
 #DEFS += -DCPM_MMU_EXERCISE
@@ -95,6 +99,7 @@ HDRS ?= $(SRC_DIR)/supermez80.h $(SRC_DIR)/picconfig.h \
         $(BUILD_DIR)/trampoline_nmi.inc \
         $(BUILD_DIR)/dma_helper.inc \
         $(BUILD_DIR)/dummy.inc \
+        $(BUILD_DIR)/z8s180_57q_ipl.inc \
         $(DRIVERS_DIR)/pic18f47q43_spi.c \
         $(DRIVERS_DIR)/SDCard.c \
         $(DRIVERS_DIR)/mcp23s08.c \
@@ -108,6 +113,11 @@ $(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS)
         mv supermez80.hex $(HEXFILE)
 
 $(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(ASM)
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
+        $(ASM) $(ASM_OPTS) -l $*.lst -o $*.bin $< && \
+        cat $*.bin | xxd -i > $@
+
+$(BUILD_DIR)/%.inc: $(SRC_DIR)/boards/%.z80 $(ASM)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
         $(ASM) $(ASM_OPTS) -l $*.lst -o $*.bin $< && \
         cat $*.bin | xxd -i > $@
@@ -146,6 +156,7 @@ test_build::
 	make BOARD=SUPERMEZ80_SPI PIC=18F47Q43
 	make BOARD=SUPERMEZ80_CPM PIC=18F47Q43
 	make BOARD=EMUZ80_57Q     PIC=18F57Q43
+	make BOARD=Z8S180_57Q     PIC=18F57Q43
 	ls -l build.*.*/*.hex
 
 clean::
