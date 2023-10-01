@@ -23,15 +23,15 @@
 
 #define BOARD_DEPENDENT_SOURCE
 
-#include "../supermez80.h"
+#include <supermez80.h>
 #include <stdio.h>
-#include "../../drivers/SDCard.h"
-#include "../../drivers/mcp23s08.h"
-#include "../../drivers/picregister.h"
+#include <SDCard.h>
+#include <mcp23s08.h>
+#include <picregister.h>
 
 #define SPI_PREFIX      SPI_SD
 #define SPI_HW_INST     SPI1
-#include "../../drivers/SPI.h"
+#include <SPI.h>
 
 #define Z80_IOREQ       A0
 #define Z80_MEMRQ       A1
@@ -256,5 +256,5 @@ void board_init()
     board_set_wait_pin_hook  = emuz80_57q_set_wait_pin;
 }
 
-#include "../../drivers/pic18f47q43_spi.c"
-#include "../../drivers/SDCard.c"
+#include <pic18f47q43_spi.c>
+#include <SDCard.c>
