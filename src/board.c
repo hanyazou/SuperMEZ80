@@ -23,6 +23,8 @@
 
 #include <supermez80.h>
 
+uint8_t board_io_base = 0;
+
 char *(*board_name_hook)(void) = NULL;
 void (*board_sys_init_hook)(void) = NULL;
 void (*board_disk_init_hook)(void) = NULL;

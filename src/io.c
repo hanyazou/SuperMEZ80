@@ -315,7 +315,7 @@ void io_handle() {
         return;
 
     int do_bus_master = 0;
-    uint8_t io_addr = addr_l_pins();
+    uint8_t io_addr = addr_l_pins() - board_io_base;
     uint8_t io_data = data_pins();
 
     if (rd_pin() && wr_pin() && 0 <= io_interrupt_data) {
