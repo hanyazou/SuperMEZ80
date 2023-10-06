@@ -65,6 +65,10 @@
 
 #include "emuz80_common.c"
 
+static const uint8_t ipl[] = {
+#include "z8s180_57q_ipl.inc"
+};
+
 static char *emuz80_57q_name()
 {
     return "Z8S180-57Q";
@@ -249,6 +253,8 @@ void board_init()
     emuz80_common_init();
 
     board_io_base = 0x40;
+    board_ipl = ipl;
+    board_ipl_size = sizeof(ipl);
 
     board_name_hook = emuz80_57q_name;
     board_sys_init_hook = emuz80_57q_sys_init;
