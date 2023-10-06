@@ -107,6 +107,18 @@ static void emuz80_57q_sys_init()
 
     emuz80_common_wait_for_programmer();
 
+    #if defined Z80_CLK && Z80_CLK_HZ == 0
+    // Serial clock
+    ANSEL(Z80_CLK) = 0;             // Disable analog function
+    PPS(Z80_CLK) = 0x3f;            // asign NCO1
+    TRIS(Z80_CLK) = 0;              // NCO output pin
+    NCO1INC = 5033;                 // Serial clock 153.6kHz(9600*16)
+    NCO1CLK = 0x00;                 // Clock source Fosc
+    NCO1PFM = 0;                    // FDC mode
+    NCO1OUT = 1;                    // NCO output enable
+    NCO1EN = 1;                     // NCO enable
+    #endif
+
     // Initialize memory bank
     set_bank_pins(0x00000);
 }
@@ -159,16 +171,6 @@ static void emuz80_57q_start_z80(void)
 {
     emuz80_common_start_z80();
 
-#ifndef Z80_CLK_HZ
-    ANSELA3 = 0;		// Disable analog function
-    RA3PPS = 0x3f;		// RA3 asign NCO1
-    TRISA3 = 0;			// output
-    NCO1INC = 5033;		// Serial clock 153.6kHz(9600*16)
-    NCO1CLK = 0x00;		// Clock source Fosc
-    NCO1PFM = 0;		// FDC mode
-    NCO1OUT = 1;		// NCO output enable
-    NCO1EN = 1;			// NCO enable
-#endif
     //
     // CLC1: /IOREQ -> /WAIT( if IO_ADR >= 0x40 )
     //
