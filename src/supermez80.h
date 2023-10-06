@@ -212,6 +212,9 @@ extern void mmu_bank_select(int bank);
 
 // board
 extern uint8_t board_io_base;
+extern const uint8_t *board_ipl;
+extern unsigned int board_ipl_size;
+
 extern void board_init(void);
 extern char *(*board_name_hook)(void);
 #define board_name() (*board_name_hook)()

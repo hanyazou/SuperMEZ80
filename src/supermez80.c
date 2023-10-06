@@ -48,7 +48,7 @@ debug_t debug = {
 // global variable which is handled by board dependent stuff
 int turn_on_io_led = 0;
 
-const unsigned char rom[] = {
+const uint8_t rom[] = {
 // Initial program loader at 0x0000
 #ifdef CPM_MMU_EXERCISE
 #include "mmu_exercise.inc"
@@ -80,9 +80,14 @@ void main(void)
     //
     // Transfer ROM image to the SRAM
     //
+#if defined(CPM_MMU_EXERCISE)
     dma_write_to_sram(0x00000, rom, sizeof(rom));
-
-#if !defined(CPM_MMU_EXERCISE)
+#else
+    if (board_ipl) {
+        dma_write_to_sram(0x00000, board_ipl, board_ipl_size);
+    } else {
+        dma_write_to_sram(0x00000, rom, sizeof(rom));
+    }
     if (menu_select() < 0)
         while (1);
 #endif  // !CPM_MMU_EXERCISE
