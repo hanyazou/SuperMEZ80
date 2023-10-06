@@ -248,6 +248,8 @@ void board_init()
 {
     emuz80_common_init();
 
+    board_io_base = 0x40;
+
     board_name_hook = emuz80_57q_name;
     board_sys_init_hook = emuz80_57q_sys_init;
     board_disk_init_hook = emuz80_57q_disk_init;
