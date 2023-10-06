@@ -96,9 +96,12 @@ void main(void)
     // Start Z80
     //
     if (NCO1EN) {
-        printf("Use NCO %.2f MHz for Z80 clock\n\r", ((uint32_t)NCO1INC * 61 / 2) / 1000000.0);
-    } else {
-        printf("Use RA3 external clock for Z80\n\r");
+        double khz = ((uint32_t)NCO1INC * 61 / 2) / 1000.0;
+        if (1000 < khz) {
+            printf("NCO1: %.2f MHz\n\r", khz / 1000);
+        } else {
+            printf("NCO1: %.2f KHz\n\r", khz);
+        }
     }
     printf("\n\r");
     start_z80();

@@ -91,19 +91,21 @@ static void emuz80_common_sys_init()
     TRIS(Z80_DATA) = 0x00;      // Set as output
 
     // Z80 clock
-#if Z80_CLK_HZ != 0
+    #ifdef Z80_CLK
+    #if Z80_CLK_HZ != 0
     PPS(Z80_CLK) = 0x3f;        // asign NCO1
     TRIS(Z80_CLK) = 0;          // NCO output pin
     NCO1INC = Z80_CLK_HZ * 2 / 61;
     NCO1CLK = 0x00;             // Clock source Fosc
     NCO1PFM = 0;                // FDC mode
     NCO1EN = 1;                 // NCO enable
-#else
+    #else
     // Disable clock output for Z80 (Use external clock for Z80)
     PPS(Z80_CLK) = 0;           // select LATxy
     TRIS(Z80_CLK) = 1;          // set as input
     NCO1EN = 0;                 // NCO disable
-#endif
+    #endif
+    #endif
 }
 
 static void emuz80_common_start_z80(void)
@@ -342,7 +344,7 @@ static void emuz80_common_init()
     board_low_addr_mask_hook    = emuz80_common_low_addr_mask;
     board_write_to_sram_hook    = emuz80_common_write_to_sram;
     board_read_from_sram_hook   = emuz80_common_read_from_sram;
-    #if Z80_CLK_HZ != 0
+    #if Z80_CLK_HZ != 0 && defined(Z80_CLK)
     board_clock_op_hook         = emuz80_common_clock_op_hook;
     #endif
 
