@@ -1,4 +1,5 @@
 	.z180
+	.include "config_asm.inc"
 ;	CP/M 2.2 boot-loader for Z80-Simulator
 ;
 ;	Copyright (C) 1988-2007 by Udo Munk
@@ -17,10 +18,6 @@ SECTS	EQU	SIZE/128	;# of sectors to load
 ;
 ;	I/O ports
 ;
-UART_180	equ	1	; use Z8S180 serial
-UART_PIC	equ	0	; use PIC serial (CPU clock 16MHz limit)
-BYTE_RW 	equ	0	; use I/O byte read/write
-
 	if	UART_180
 IOBASE		EQU	00h
 UART_RX		EQU	IOBASE+08h	; UART DATA REGISTOR

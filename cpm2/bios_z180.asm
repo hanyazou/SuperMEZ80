@@ -1,4 +1,5 @@
 	.z180
+	.include "config_asm.inc"
 ;	Z80 CBIOS for Z80-Simulator
 ;
 ;	Copyright (C) 1988-2007 by Udo Munk
@@ -18,10 +19,6 @@ IOBYTE	EQU	0003H		;intel i/o byte
 ;
 ;	I/O ports
 ;
-UART_180	equ	1	; use Z8S180 serial
-UART_PIC	equ	0	; use PIC serial (CPU clock 16MHz limit)
-BYTE_RW 	equ	0	; use I/O byte read/write
-
 	if	UART_180
 IOBASE		EQU	00h
 UART_RX		EQU	IOBASE+08h	; UART DATA REGISTOR

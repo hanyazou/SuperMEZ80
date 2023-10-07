@@ -1,5 +1,6 @@
 	page	0
 	.z180
+	.include "./config_asm.inc"
 
 ;	CP/M 2.2 boot-loader for Z80-Simulator
 ;
@@ -27,10 +28,6 @@
 ;OTHER DEALINGS IN THE SOFTWARE.
 ;
 	ORG	0		;mem base of boot
-
-UART_180	equ	1	; use Z8S180 serial
-UART_PIC	equ	0	; use PIC serial (CPU clock 16MHz limit)
-BYTE_RW 	equ	0	; use I/O byte read/write
 ;
 ;	I/O ports
 ;
@@ -56,10 +53,6 @@ UART_RX		EQU	IOBASE+08h	; UART DATA REGISTOR
 UART_TX		EQU	IOBASE+06h
 UARTCR_180	EQU	IOBASE+04h	; UART CONTROL REGISTOR
 OMCR_V		EQU	0E0H
-
-CLOCK_0		equ	0	; CPU clock = 0.5 x external clock
-CLOCK_1		equ	1	; CPU clock = 1.0 x external clock
-CLOCK_2		equ	0	; CPU clock = 2.0 x external clock
 ;
 BOOT:
 	JP	COLD

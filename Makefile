@@ -26,6 +26,10 @@ Z80_CLK_HZ ?= 6396277UL        #  6.4 MHz (NCOxINC = 0x33333, 64MHz/5/2)
 #Z80_CLK_HZ ?= 12792615UL       # 12.8 MHz (NCOxINC = 0x66666, 64MHz/5)
 #Z80_CLK_HZ ?= 15990784UL       # 16.0 MHz (NCOxINC = 0x80000, 64MHz/2/2)
 
+Z180_CLK_MULT ?= 2
+Z180_NO_DMA ?= 0
+Z180_UART ?= 0
+
 TEST_REPEAT ?= 10
 
 PJ_DIR ?= $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
@@ -110,18 +114,19 @@ all: $(BUILD_DIR)/$(HEXFILE) \
     $(BUILD_DIR)/CPMDISKS.180/drivea.dsk
 
 $(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS)
-	cd $(BUILD_DIR) && \
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
         $(XC8) $(XC8_OPTS) $(DEFS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
         mv supermez80.hex $(HEXFILE)
 
-$(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(ASM)
+$(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(ASM) $(BUILD_DIR)/config_asm.inc
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
         $(ASM) $(ASM_OPTS) -l $*.lst -o $*.bin $< && \
         cat $*.bin | xxd -i > $@
 
-$(BUILD_DIR)/%.inc: $(SRC_DIR)/boards/%.z80 $(ASM)
+$(BUILD_DIR)/%.inc: $(SRC_DIR)/boards/%.z80 $(ASM) $(BUILD_DIR)/config_asm.inc
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(ASM) $(ASM_OPTS) -l $*.lst -o $*.bin $< && \
+        cp $< . && \
+        $(ASM) $(ASM_OPTS) -l $*.lst -o $*.bin $*.z80 && \
         cat $*.bin | xxd -i > $@
 
 $(BUILD_DIR)/boot.bin: $(CPM2_DIR)/boot.asm $(BUILD_DIR) $(ASM)
@@ -132,7 +137,7 @@ $(BUILD_DIR)/bios.bin: $(CPM2_DIR)/bios.asm $(BUILD_DIR) $(ASM)
         $(ASM) $(ASM_OPTS) -o $@ $<
 
 $(BUILD_DIR)/CPMDISKS.PIO/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
-	cd $(BUILD_DIR); \
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
 	mkdir -p CPMDISKS.PIO; \
 	dd if=$(CPM2_DIR)/z80pack-cpm2-1.dsk of=$@ bs=128; \
 	dd if=boot.bin of=$@ bs=128 seek=0  count=1 conv=notrunc; \
@@ -140,17 +145,56 @@ $(BUILD_DIR)/CPMDISKS.PIO/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bi
 
 $(BUILD_DIR)/boot_z180.bin: $(CPM2_DIR)/boot_z180.asm $(BUILD_DIR) $(ASM)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(ASM) $(ASM_OPTS) -o $@ $<
+        cp $< . && \
+        $(ASM) $(ASM_OPTS) -o $@ boot_z180.asm
 $(BUILD_DIR)/bios_z180.bin: $(CPM2_DIR)/bios_z180.asm $(BUILD_DIR) $(ASM)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(ASM) $(ASM_OPTS) -o $@ $<
+        cp $< . && \
+        $(ASM) $(ASM_OPTS) -o $@ bios_z180.asm
 
 $(BUILD_DIR)/CPMDISKS.180/drivea.dsk: $(BUILD_DIR)/boot_z180.bin $(BUILD_DIR)/bios_z180.bin
-	cd $(BUILD_DIR); \
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
 	mkdir -p CPMDISKS.180; \
 	dd if=$(CPM2_DIR)/z80pack-cpm2-1.dsk of=$@ bs=128; \
 	dd if=boot_z180.bin of=$@ bs=128 seek=0  count=1 conv=notrunc; \
 	dd if=bios_z180.bin of=$@ bs=128 seek=45 count=6 conv=notrunc
+
+$(CPM2_DIR)/boot_z180.asm: $(BUILD_DIR)/config_asm.inc
+$(CPM2_DIR)/bios_z180.asm: $(BUILD_DIR)/config_asm.inc
+
+$(BUILD_DIR)/config_asm.inc: Makefile
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
+	rm -f $@
+	if [ "$(Z180_UART)" != 0 ]; then \
+	    echo "UART_180	EQU	1" >> $@; \
+	    echo "UART_PIC	EQU	0" >> $@; \
+	else \
+	    echo "UART_180	EQU	0" >> $@; \
+	    echo "UART_PIC	EQU	1" >> $@; \
+	fi
+	if [ "$(Z180_NO_DMA)" != 0 ]; then \
+	    echo "BYTE_RW	EQU	1" >> $@; \
+	else \
+	    echo "BYTE_RW	EQU	0" >> $@; \
+	fi
+	if [ "$(Z180_CLK_MULT)" == 0 ]; then \
+	    echo "CLOCK_0	EQU	1" >> $@; \
+	else \
+	    echo "CLOCK_0	EQU	0" >> $@; \
+	fi
+	if [ "$(Z180_CLK_MULT)" == 1 ]; then \
+	    echo "CLOCK_1	EQU	1" >> $@; \
+	else \
+	    echo "CLOCK_1	EQU	0" >> $@; \
+	fi
+	if [ "$(Z180_CLK_MULT)" == 2 ]; then \
+	    echo "CLOCK_2	EQU	1" >> $@; \
+	else \
+	    echo "CLOCK_2	EQU	0" >> $@; \
+	fi
+	@echo ===================================
+	@cat $@
+	@echo ===================================
 
 upload: $(BUILD_DIR)/$(HEXFILE) $(PP3_DIR)/pp3
 	cd $(PP3_DIR) && ./pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE)
