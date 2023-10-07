@@ -1,3 +1,6 @@
+	page 0
+	cpu Z180
+
 ;	Z80 CBIOS for Z80-Simulator
 ;
 ;	Copyright (C) 1988-2007 by Udo Munk
@@ -17,19 +20,42 @@ IOBYTE	EQU	0003H		;intel i/o byte
 ;
 ;	I/O ports
 ;
-CONSTA	EQU	0		;console status port
-CONDAT	EQU	1		;console data port
+UART_180	equ	1	; use Z8S180 serial
+UART_PIC	equ	0	; use PIC serial (CPU clock 16MHz limit)
+BYTE_RW 	equ	0	; use I/O byte read/write
+
+	if	UART_180
+IOBASE		EQU	00h
+UART_RX		EQU	IOBASE+08h	; UART DATA REGISTOR
+UART_TX		EQU	IOBASE+06h
+UARTCR_180	EQU	IOBASE+04h	; UART CONTROL REGISTOR
+	endif
+
+	if	UART_PIC
+CONSTA	EQU	40h		;console status port
+CONDAT	EQU	41h		;console data port
+	endif
+
 PRTSTA	EQU	2		;printer status port
 PRTDAT	EQU	3		;printer data port
 AUXDAT	EQU	5		;auxiliary data port
-FDCDAT	EQU	8		;fdc-port: data (non-DMA)
-FDCD	EQU	10		;fdc-port: # of drive
-FDCT	EQU	11		;fdc-port: # of track
-FDCS	EQU	12		;fdc-port: # of sector
-FDCOP	EQU	13		;fdc-port: command
-FDCST	EQU	14		;fdc-port: status
-DMAL	EQU	15		;dma-port: dma address low
-DMAH	EQU	16		;dma-port: dma address high
+
+FDCDAT	EQU	48h		;fdc-port: data (non-DMA)
+FDCD	EQU	4ah		;fdc-port: # of drive
+FDCT	EQU	4bh		;fdc-port: # of track
+FDCS	EQU	4ch		;fdc-port: # of sector
+FDCOP	EQU	4dh		;fdc-port: command
+FDCST	EQU	4eh		;fdc-port: status
+DMAL	EQU	4fh		;dma-port: dma address low
+DMAH	EQU	50h		;dma-port: dma address high
+
+D_DMA_READ	equ	0
+D_DMA_WRITE	equ	1
+D_READ		equ	2
+D_WRITE		equ	3
+D_SUCCESS	equ	0
+D_ERROR		equ	1
+
 ;
 	ORG	BIOS		;origin of this program
 ;
@@ -57,82 +83,80 @@ WBOOTE: JP	WBOOT		;warm start
 ;	IBM-compatible 8" SD disks
 ;
 ;	disk parameter header for disk 00
-DPBASE:	DEFW	TRANS,0000H
-	DEFW	0000H,0000H
-	DEFW	DIRBF,DPBLK
-	DEFW	CHK00,ALL00
+DPBASE:	DW	TRANS,0000H
+	DW	0000H,0000H
+	DW	DIRBF,DPBLK
+	DW	CHK00,ALL00
 ;	disk parameter header for disk 01
-	DEFW	TRANS,0000H
-	DEFW	0000H,0000H
-	DEFW	DIRBF,DPBLK
-	DEFW	CHK01,ALL01
+	DW	TRANS,0000H
+	DW	0000H,0000H
+	DW	DIRBF,DPBLK
+	DW	CHK01,ALL01
 ;	disk parameter header for disk 02
-	DEFW	TRANS,0000H
-	DEFW	0000H,0000H
-	DEFW	DIRBF,DPBLK
-	DEFW	CHK02,ALL02
+	DW	TRANS,0000H
+	DW	0000H,0000H
+	DW	DIRBF,DPBLK
+	DW	CHK02,ALL02
 ;	disk parameter header for disk 03
-	DEFW	TRANS,0000H
-	DEFW	0000H,0000H
-	DEFW	DIRBF,DPBLK
-	DEFW	CHK03,ALL03
+	DW	TRANS,0000H
+	DW	0000H,0000H
+	DW	DIRBF,DPBLK
+	DW	CHK03,ALL03
 ;
 ;	sector translate vector for the IBM 8" SD disks
 ;
-TRANS:	DEFB	1,7,13,19	;sectors 1,2,3,4
-	DEFB	25,5,11,17	;sectors 5,6,7,8
-	DEFB	23,3,9,15	;sectors 9,10,11,12
-	DEFB	21,2,8,14	;sectors 13,14,15,16
-	DEFB	20,26,6,12	;sectors 17,18,19,20
-	DEFB	18,24,4,10	;sectors 21,22,23,24
-	DEFB	16,22		;sectors 25,26
+TRANS:	DB	1,7,13,19	;sectors 1,2,3,4
+	DB	25,5,11,17	;sectors 5,6,7,8
+	DB	23,3,9,15	;sectors 9,10,11,12
+	DB	21,2,8,14	;sectors 13,14,15,16
+	DB	20,26,6,12	;sectors 17,18,19,20
+	DB	18,24,4,10	;sectors 21,22,23,24
+	DB	16,22		;sectors 25,26
 ;
 ;	disk parameter block, common to all IBM 8" SD disks
 ;
-DPBLK:  DEFW	26		;sectors per track
-	DEFB	3		;block shift factor
-	DEFB	7		;block mask
-	DEFB	0		;extent mask
-	DEFW	242		;disk size-1
-	DEFW	63		;directory max
-	DEFB	192		;alloc 0
-	DEFB	0		;alloc 1
-	DEFW	16		;check size
-	DEFW	2		;track offset
+DPBLK:  DW	26		;sectors per track
+	DB	3		;block shift factor: BLS=1024
+	DB	7		;block mask: BLM=BLS/128-1
+	DB	0		;extent mask
+	DW	242		;disk size-1: 128*26*(77-2)/1024-1
+	DW	63		;directory max
+	DB	192		;alloc 0
+	DB	0		;alloc 1
+	DW	16		;check size
+	DW	2		;track offset
 ;
 ;	fixed data tables for 4MB harddisks
 ;
 ;	disk parameter header
-HDB1:	DEFW	0000H,0000H
-	DEFW	0000H,0000H
-	DEFW	DIRBF,HDBLK
-	DEFW	CHKHD1,ALLHD1
-HDB2:	DEFW	0000H,0000H
-	DEFW	0000H,0000H
-	DEFW	DIRBF,HDBLK
-	DEFW	CHKHD2,ALLHD2
+HDB1:	DW	0000H,0000H
+	DW	0000H,0000H
+	DW	DIRBF,HDBLK
+	DW	CHKHD1,ALLHD1
+HDB2:	DW	0000H,0000H
+	DW	0000H,0000H
+	DW	DIRBF,HDBLK
+	DW	CHKHD2,ALLHD2
 ;
 ;       disk parameter block for harddisk
 ;
-HDBLK:  DEFW    128		;sectors per track
-	DEFB    4		;block shift factor
-	DEFB    15		;block mask
-	DEFB    0		;extent mask
-	DEFW    2039		;disk size-1
-	DEFW    1023		;directory max
-	DEFB    255		;alloc 0
-	DEFB    255		;alloc 1
-	DEFW    0		;check size
-	DEFW    0		;track offset
+HDBLK:  DW    128		;sectors per track
+	DB    4			;block shift factor: BLS=2048
+	DB    15		;block mask: BLM=BLS/128-1
+	DB    0			;extent mask
+	DW    2039		;disk size-1: 128*128*(255)/2048-1
+	DW    1023		;directory max
+	DB    255		;alloc 0
+	DB    255		;alloc 1
+	DW    0			;check size
+	DW    0			;track offset
 ;
 ;	messages
 ;
-SIGNON: DEFM	'64K CP/M Vers. 2.2 (Z80 CBIOS V1.2 for Z80SIM, '
-	DEFM	'Copyright 1988-2007 by Udo Munk)'
-	DEFB	13,10,0
+SIGNON: DB	"64K CP/M Vers. 2.2 (Z80 CBIOS V1.2 for Z80SIM, "
+	DB	"Copyright 1988-2007 by Udo Munk)\r\n",0
 ;
-LDERR:	DEFM	'BIOS: error booting'
-	DEFB	13,10,0
+LDERR:	DB	"BIOS: error booting\r\n",0
 
 ;
 ;	end of fixed tables
@@ -160,6 +184,7 @@ BOOT:   LD	SP,80H		;use space below buffer for stack
 	LD	(IOBYTE),A	;clear the iobyte
 	LD	(CDISK),A	;select disk zero
 	JP	GOCPM		;initialize and go to cp/m
+
 ;
 ;	simplest case is to read the disk until all sectors loaded
 ;
@@ -234,6 +259,7 @@ GOCPM:
 ;
 ;	console status, return 0ffh if character ready, 00h if not
 ;
+	if UART_PIC
 CONST:	IN	A,(CONSTA)	;get console status
 	RET
 ;
@@ -247,6 +273,35 @@ CONIN:	IN	A,(CONDAT)	;get character from console
 CONOUT: LD	A,C		;get to accumulator
 	OUT	(CONDAT),A	;send character to console
 	RET
+	endif
+
+	if UART_180
+CONST:
+	IN0	A,(UARTCR_180)
+	AND	80h
+	RET	Z
+	ld	a, 0ffh
+	ret
+;
+;	console character into register a
+;
+CONIN:
+	IN0	A,(UARTCR_180)
+	bIT	7,A
+	JR	Z,CONIN
+	IN0	A,(UART_RX)
+	RET
+;
+;	console character output from register c
+;
+CONOUT:
+	IN0	A,(UARTCR_180)
+	BIT	1,A
+	JR	Z,CONOUT
+	ld	a, c
+	OUT0	(UART_TX),A
+	RET
+	endif
 ;
 ;	list character from register c
 ;
@@ -352,11 +407,21 @@ SETDMA: LD	A,C		;low order address
 ;
 ;	perform read operation
 ;
-READ:	LD	A,2		;read command -> A
+READ:
+	if BYTE_RW
+	LD	A,D_READ	;read command -> A
+	else
+	LD	A,D_DMA_READ	;read command -> A
+	endif
+
 	OUT	(FDCOP),A	;start i/o operation
 	IN	A,(FDCST)	;status of i/o operation -> A
 	OR	A
+
+	if BYTE_RW
+
 	RET	NZ		;return if an error occurred
+
 	; read 128 bytes from the I/O port
 	PUSH	DE
 	PUSH	HL
@@ -374,13 +439,23 @@ LREAD:
 	POP	HL
 	POP	DE
 	LD	A,0
-	RET
 
+	endif
+
+	RET
 ;
 ;	perform a write operation
 ;
-WRITE:	LD	A,3		;write command -> A
-	OUT	(FDCOP),A	;start i/o operation
+WRITE:
+
+	if BYTE_RW
+	LD	A,D_WRITE	;write command -> A
+	else
+	LD	A,D_DMA_WRITE	;write command -> A
+	endif
+
+	if BYTE_RW
+
 	; write 128 bytes from the I/O port
 	PUSH	DE
 	PUSH	HL
@@ -397,13 +472,17 @@ LWRITE:
 	JP	NZ,LWRITE
 	POP	HL
 	POP	DE
+
+	endif
+
 	IN	A,(FDCST)	;status of i/o operation -> A
 	RET
+
 ;
 ;	disk I/O destination address in non DMA mode
 ;
-DSTH:	DEFB	0		;disk I/O destination address high
-DSTL:	DEFB	0		;disk I/O destination address low
+DSTH:	DB	0		;disk I/O destination address high
+DSTL:	DB	0		;disk I/O destination address low
 ;
 ;	the remainder of the CBIOS is reserved uninitialized
 ;	data area, and does not need to be a part of the
@@ -413,19 +492,21 @@ DSTL:	DEFB	0		;disk I/O destination address low
 ;	scratch ram area for BDOS use
 ;
 BEGDAT	EQU	$		;beginning of data area
-DIRBF:	DEFS	128,0		;scratch directory area
-ALL00:	DEFS	31,0		;allocation vector 0
-ALL01:	DEFS	31,0		;allocation vector 1
-ALL02:	DEFS	31,0		;allocation vector 2
-ALL03:	DEFS	31,0		;allocation vector 3
-ALLHD1:	DEFS	255,0		;allocation vector harddisk 1
-ALLHD2:	DEFS	255,0		;allocation vector harddisk 2
-CHK00:	DEFS	16,0		;check vector 0
-CHK01:	DEFS	16,0		;check vector 1
-CHK02:	DEFS	16,0		;check vector 2
-CHK03:	DEFS	16,0		;check vector 3
-CHKHD1:	DEFS	0,0		;check vector harddisk 1
-CHKHD2:	DEFS	0,0		;check vector harddisk 2
+DIRBF:	DS	128		;scratch directory area
+ALL00:	DS	31		;allocation vector 0
+ALL01:	DS	31		;allocation vector 1
+ALL02:	DS	31		;allocation vector 2
+ALL03:	DS	31		;allocation vector 3
+ALLHD1:	DS	255		;allocation vector harddisk 1
+ALLHD2:	DS	255		;allocation vector harddisk 2
+CHK00:	DS	16		;check vector 0
+CHK01:	DS	16		;check vector 1
+CHK02:	DS	16		;check vector 2
+CHK03:	DS	16		;check vector 3
+CHKHD1:				;check vector harddisk 1
+CHKHD2:				;check vector harddisk 2
+;CHKHD1:	DEFS	0		;check vector harddisk 1
+;CHKHD2:	DEFS	0		;check vector harddisk 2
 ;
 ENDDAT	EQU	$		;end of data area
 DATSIZ	EQU	$-BEGDAT	;size of data area
