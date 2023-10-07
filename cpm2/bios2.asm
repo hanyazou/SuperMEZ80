@@ -1,6 +1,4 @@
-	page 0
-	cpu Z180
-
+	.z180
 ;	Z80 CBIOS for Z80-Simulator
 ;
 ;	Copyright (C) 1988-2007 by Udo Munk
@@ -83,80 +81,82 @@ WBOOTE: JP	WBOOT		;warm start
 ;	IBM-compatible 8" SD disks
 ;
 ;	disk parameter header for disk 00
-DPBASE:	DW	TRANS,0000H
-	DW	0000H,0000H
-	DW	DIRBF,DPBLK
-	DW	CHK00,ALL00
+DPBASE:	DEFW	TRANS,0000H
+	DEFW	0000H,0000H
+	DEFW	DIRBF,DPBLK
+	DEFW	CHK00,ALL00
 ;	disk parameter header for disk 01
-	DW	TRANS,0000H
-	DW	0000H,0000H
-	DW	DIRBF,DPBLK
-	DW	CHK01,ALL01
+	DEFW	TRANS,0000H
+	DEFW	0000H,0000H
+	DEFW	DIRBF,DPBLK
+	DEFW	CHK01,ALL01
 ;	disk parameter header for disk 02
-	DW	TRANS,0000H
-	DW	0000H,0000H
-	DW	DIRBF,DPBLK
-	DW	CHK02,ALL02
+	DEFW	TRANS,0000H
+	DEFW	0000H,0000H
+	DEFW	DIRBF,DPBLK
+	DEFW	CHK02,ALL02
 ;	disk parameter header for disk 03
-	DW	TRANS,0000H
-	DW	0000H,0000H
-	DW	DIRBF,DPBLK
-	DW	CHK03,ALL03
+	DEFW	TRANS,0000H
+	DEFW	0000H,0000H
+	DEFW	DIRBF,DPBLK
+	DEFW	CHK03,ALL03
 ;
 ;	sector translate vector for the IBM 8" SD disks
 ;
-TRANS:	DB	1,7,13,19	;sectors 1,2,3,4
-	DB	25,5,11,17	;sectors 5,6,7,8
-	DB	23,3,9,15	;sectors 9,10,11,12
-	DB	21,2,8,14	;sectors 13,14,15,16
-	DB	20,26,6,12	;sectors 17,18,19,20
-	DB	18,24,4,10	;sectors 21,22,23,24
-	DB	16,22		;sectors 25,26
+TRANS:	DEFB	1,7,13,19	;sectors 1,2,3,4
+	DEFB	25,5,11,17	;sectors 5,6,7,8
+	DEFB	23,3,9,15	;sectors 9,10,11,12
+	DEFB	21,2,8,14	;sectors 13,14,15,16
+	DEFB	20,26,6,12	;sectors 17,18,19,20
+	DEFB	18,24,4,10	;sectors 21,22,23,24
+	DEFB	16,22		;sectors 25,26
 ;
 ;	disk parameter block, common to all IBM 8" SD disks
 ;
-DPBLK:  DW	26		;sectors per track
-	DB	3		;block shift factor: BLS=1024
-	DB	7		;block mask: BLM=BLS/128-1
-	DB	0		;extent mask
-	DW	242		;disk size-1: 128*26*(77-2)/1024-1
-	DW	63		;directory max
-	DB	192		;alloc 0
-	DB	0		;alloc 1
-	DW	16		;check size
-	DW	2		;track offset
+DPBLK:  DEFW	26		;sectors per track
+	DEFB	3		;block shift factor
+	DEFB	7		;block mask
+	DEFB	0		;extent mask
+	DEFW	242		;disk size-1
+	DEFW	63		;directory max
+	DEFB	192		;alloc 0
+	DEFB	0		;alloc 1
+	DEFW	16		;check size
+	DEFW	2		;track offset
 ;
 ;	fixed data tables for 4MB harddisks
 ;
 ;	disk parameter header
-HDB1:	DW	0000H,0000H
-	DW	0000H,0000H
-	DW	DIRBF,HDBLK
-	DW	CHKHD1,ALLHD1
-HDB2:	DW	0000H,0000H
-	DW	0000H,0000H
-	DW	DIRBF,HDBLK
-	DW	CHKHD2,ALLHD2
+HDB1:	DEFW	0000H,0000H
+	DEFW	0000H,0000H
+	DEFW	DIRBF,HDBLK
+	DEFW	CHKHD1,ALLHD1
+HDB2:	DEFW	0000H,0000H
+	DEFW	0000H,0000H
+	DEFW	DIRBF,HDBLK
+	DEFW	CHKHD2,ALLHD2
 ;
 ;       disk parameter block for harddisk
 ;
-HDBLK:  DW    128		;sectors per track
-	DB    4			;block shift factor: BLS=2048
-	DB    15		;block mask: BLM=BLS/128-1
-	DB    0			;extent mask
-	DW    2039		;disk size-1: 128*128*(255)/2048-1
-	DW    1023		;directory max
-	DB    255		;alloc 0
-	DB    255		;alloc 1
-	DW    0			;check size
-	DW    0			;track offset
+HDBLK:  DEFW    128		;sectors per track
+	DEFB    4		;block shift factor
+	DEFB    15		;block mask
+	DEFB    0		;extent mask
+	DEFW    2039		;disk size-1
+	DEFW    1023		;directory max
+	DEFB    255		;alloc 0
+	DEFB    255		;alloc 1
+	DEFW    0		;check size
+	DEFW    0		;track offset
 ;
 ;	messages
 ;
-SIGNON: DB	"64K CP/M Vers. 2.2 (Z80 CBIOS V1.2 for Z80SIM, "
-	DB	"Copyright 1988-2007 by Udo Munk)\r\n",0
+SIGNON: DEFM	'64K CP/M Vers. 2.2 (Z80 CBIOS V1.2 for Z80SIM, '
+	DEFM	'Copyright 1988-2007 by Udo Munk)'
+	DEFB	13,10,0
 ;
-LDERR:	DB	"BIOS: error booting\r\n",0
+LDERR:	DEFM	'BIOS: error booting'
+	DEFB	13,10,0
 
 ;
 ;	end of fixed tables
@@ -184,7 +184,6 @@ BOOT:   LD	SP,80H		;use space below buffer for stack
 	LD	(IOBYTE),A	;clear the iobyte
 	LD	(CDISK),A	;select disk zero
 	JP	GOCPM		;initialize and go to cp/m
-
 ;
 ;	simplest case is to read the disk until all sectors loaded
 ;
@@ -421,7 +420,6 @@ READ:
 	if BYTE_RW
 
 	RET	NZ		;return if an error occurred
-
 	; read 128 bytes from the I/O port
 	PUSH	DE
 	PUSH	HL
@@ -477,12 +475,11 @@ LWRITE:
 
 	IN	A,(FDCST)	;status of i/o operation -> A
 	RET
-
 ;
 ;	disk I/O destination address in non DMA mode
 ;
-DSTH:	DB	0		;disk I/O destination address high
-DSTL:	DB	0		;disk I/O destination address low
+DSTH:	DEFB	0		;disk I/O destination address high
+DSTL:	DEFB	0		;disk I/O destination address low
 ;
 ;	the remainder of the CBIOS is reserved uninitialized
 ;	data area, and does not need to be a part of the
@@ -492,21 +489,19 @@ DSTL:	DB	0		;disk I/O destination address low
 ;	scratch ram area for BDOS use
 ;
 BEGDAT	EQU	$		;beginning of data area
-DIRBF:	DS	128		;scratch directory area
-ALL00:	DS	31		;allocation vector 0
-ALL01:	DS	31		;allocation vector 1
-ALL02:	DS	31		;allocation vector 2
-ALL03:	DS	31		;allocation vector 3
-ALLHD1:	DS	255		;allocation vector harddisk 1
-ALLHD2:	DS	255		;allocation vector harddisk 2
-CHK00:	DS	16		;check vector 0
-CHK01:	DS	16		;check vector 1
-CHK02:	DS	16		;check vector 2
-CHK03:	DS	16		;check vector 3
-CHKHD1:				;check vector harddisk 1
-CHKHD2:				;check vector harddisk 2
-;CHKHD1:	DEFS	0		;check vector harddisk 1
-;CHKHD2:	DEFS	0		;check vector harddisk 2
+DIRBF:	DEFS	128,0		;scratch directory area
+ALL00:	DEFS	31,0		;allocation vector 0
+ALL01:	DEFS	31,0		;allocation vector 1
+ALL02:	DEFS	31,0		;allocation vector 2
+ALL03:	DEFS	31,0		;allocation vector 3
+ALLHD1:	DEFS	255,0		;allocation vector harddisk 1
+ALLHD2:	DEFS	255,0		;allocation vector harddisk 2
+CHK00:	DEFS	16,0		;check vector 0
+CHK01:	DEFS	16,0		;check vector 1
+CHK02:	DEFS	16,0		;check vector 2
+CHK03:	DEFS	16,0		;check vector 3
+CHKHD1:	DEFS	0,0		;check vector harddisk 1
+CHKHD2:	DEFS	0,0		;check vector harddisk 2
 ;
 ENDDAT	EQU	$		;end of data area
 DATSIZ	EQU	$-BEGDAT	;size of data area

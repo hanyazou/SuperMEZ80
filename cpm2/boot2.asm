@@ -1,5 +1,4 @@
-	page 0
-	cpu Z180
+	.z180
 ;	CP/M 2.2 boot-loader for Z80-Simulator
 ;
 ;	Copyright (C) 1988-2007 by Udo Munk
@@ -51,8 +50,8 @@ D_ERROR		equ	1
 
 	JP	COLD
 ;
-ERRMSG:	DB	"BOOT: error booting"
-	DB	13,10,0
+ERRMSG:	DEFB	"BOOT: error booting"
+	DEFB	13,10,0
 ;
 ;	begin the load operation
 ;
