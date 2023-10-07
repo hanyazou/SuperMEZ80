@@ -34,10 +34,7 @@ BYTE_RW 	equ	0	; use I/O byte read/write
 ;
 ;	I/O ports
 ;
-	if	UART_PIC
 CONDAT	EQU	41h		;console data port
-	endif
-
 FDCDAT	EQU	48H		;fdc-port: data (non-DMA)
 DRIVE   EQU	4ah		;fdc-port: # of drive
 TRACK   EQU	4bh		;fdc-port: # of track
@@ -54,8 +51,6 @@ D_WRITE		equ	3
 D_SUCCESS	equ	0
 D_ERROR		equ	1
 
-
-	if	UART_180
 IOBASE		EQU	00h
 UART_RX		EQU	IOBASE+08h	; UART DATA REGISTOR
 UART_TX		EQU	IOBASE+06h
@@ -65,7 +60,6 @@ OMCR_V		EQU	0E0H
 CLOCK_0		equ	0	; CPU clock = 0.5 x external clock
 CLOCK_1		equ	1	; CPU clock = 1.0 x external clock
 CLOCK_2		equ	0	; CPU clock = 2.0 x external clock
-	endif
 ;
 BOOT:
 	JP	COLD
@@ -82,8 +76,7 @@ COLD:
 	DI
 	LD	SP,st_p
 
-	if	UART_180
-	; check Z80 or Z80180
+; check Z80 or Z80180
 	LD	BC,00FFH
 	DB	0EDH,4CH	; MLT BC (HD64180)
 	LD	A,B
@@ -121,28 +114,28 @@ COLD:
 ; Z8S180
 
 ;; CPU clock = 2.0 x external clock
-	IF	CLOCK_2
+	if	CLOCK_2
 	LD	A,80H		; Clock Divide XTAL/1 Bit 7=1
 	OUT0	(IOBASE+1FH),A	; CPU Control Register (CCR)
 	LD	A,0FFH		; X2 Clock Multiplier Mode : Enable Bit 7=1
 	OUT0	(IOBASE+1EH),A	; Clock Multiplier Register (CMR)
-	ENDIF
+	endif
 
 ;; CPU clock = 1.0 x external clock
-	IF	CLOCK_1
+	if	CLOCK_1
 	LD	A,80H		; Clock Divide XTAL/1 Bit 7=1
 	OUT0	(IOBASE+1FH),A	; CPU Control Register (CCR)
 	LD	A,07FH		; X2 Clock Multiplier Mode : Enable Bit 7=1
 	OUT0	(IOBASE+1EH),A	; Clock Multiplier Register (CMR)
-	ENDIF
+	endif
 
 ;; CPU clock = 0.5 x external clock
-	IF	CLOCK_0
+	if	CLOCK_0
 	LD	A,00H		; Clock Divide XTAL/1 Bit 7=1
 	OUT0	(IOBASE+1FH),A	; CPU Control Register (CCR)
 	LD	A,07FH		; X2 Clock Multiplier Mode : Enable Bit 7=1
 	OUT0	(IOBASE+1EH),A	; Clock Multiplier Register (CMR)
-	ENDIF
+	endif
 
 	;; HD64180Z and HD64180R
 ID_180R:
@@ -151,7 +144,6 @@ ID_180Z:
 	OUT0	(IOBASE+00h),A	; ASCI control register A ch0
 	LD	A,07h		; x16, external serial clock
 	OUT0	(IOBASE+02h),A	; ASCI control register B ch0
-	endif
 
 ID_Z80:
 	LD	HL,HLOMSG
@@ -167,7 +159,7 @@ ID_Z80:
 	LD	A,C		;set sector
 	OUT	(SECTOR),A
 
-	if BYTE_RW
+	if	BYTE_RW
 
 	LD	A,D_READ	;read sector (non-DMA)
 	OUT	(FDCOP),A
@@ -183,7 +175,7 @@ LBYTE:
 	JP	NZ,LBYTE
 	JP	BOOT		;goto BOOT
 
-	else
+	else	;BYTE_RW
 
 	LD	A,L		;set dma address low
 	OUT	(DMAL),A
@@ -195,7 +187,7 @@ LBYTE:
 	OR	A		;read successful ?
 	JP	Z,BOOT	
 
-	endif
+	endif	;BYTE_RW
 ;
 ERR_STOP:
 	ADD	A,'0'		;print error status
@@ -219,9 +211,9 @@ STROUT:
 CONOUT:
 	OUT	(CONDAT),A
 	ret
-	endif
+	endif	;UART_PIC
 
-	if UART_180
+	if	UART_180
 STROUT:
 	ld	a,(hl)
 	or	a
@@ -245,7 +237,7 @@ CT1:
 	ld	a, e
 	OUT0	(UART_TX),A
 	ret
-	endif
+	endif	;UART_PIC
 
 	org	($+20H) & 0fff0h
 st_p:
