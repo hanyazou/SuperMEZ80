@@ -27,6 +27,7 @@ const uint8_t *board_ipl = NULL;
 unsigned int board_ipl_size = 0;
 
 char *(*board_name_hook)(void) = NULL;
+char *(*board_disk_name_hook)(void) = NULL;
 void (*board_sys_init_hook)(void) = NULL;
 void (*board_disk_init_hook)(void) = NULL;
 void (*board_bus_master_hook)(int) = NULL;

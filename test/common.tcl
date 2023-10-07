@@ -31,13 +31,13 @@ proc open_cpm2 {} {
             expect "MON>"
             send -s "reset\r"
         }
-        "Select: " {
+        -re "Select.*: " {
             send "\r"
         }
     }
     expect {
         "A>" { }
-        "Select: " {
+        -re "Select.*: " {
             send "\r"
             expect "A>"
         }
@@ -61,6 +61,6 @@ proc open_cpm3 {} {
             set selection 2
         }
     }
-    expect "Select: "
+    expect -re "Select.*: "
     send $selection
 }

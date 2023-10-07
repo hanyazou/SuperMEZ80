@@ -74,6 +74,11 @@ static char *emuz80_57q_name()
     return "Z8S180-57Q";
 }
 
+static char *emuz80_57q_disk_name()
+{
+    return "180";
+}
+
 static void emuz80_57q_sys_init()
 {
     emuz80_common_sys_init();
@@ -256,6 +261,7 @@ void board_init()
     board_ipl_size = sizeof(ipl);
 
     board_name_hook = emuz80_57q_name;
+    board_disk_name_hook = emuz80_57q_disk_name;
     board_sys_init_hook = emuz80_57q_sys_init;
     board_disk_init_hook = emuz80_57q_disk_init;
     board_bus_master_hook = emuz80_57q_bus_master;

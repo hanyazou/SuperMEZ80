@@ -150,19 +150,36 @@ int menu_select(void)
  restart:
     i = 0;
     int selection = -1;
+    int preferred = -1;
     f_rewinddir(&fsdir);
+    if (is_board_disk_name_available() && board_disk_name()[0]) {
+        printf("Preferred disk image: %s\n\r", board_disk_name());
+    }
     while (f_readdir(&fsdir, &fileinfo) == FR_OK && fileinfo.fname[0] != 0) {
         if (strncmp(fileinfo.fname, "CPMDISKS", 8) == 0 ||
             strncmp(fileinfo.fname, "CPMDIS~", 7) == 0) {
             printf("%d: %s\n\r", i, fileinfo.fname);
-            if (strcmp(fileinfo.fname, "CPMDISKS") == 0)
+            if (is_board_disk_name_available() && board_disk_name()[0] &&
+                strncmp(fileinfo.fname, "CPMDISKS.", 9) == 0 &&
+                strncmp(fileinfo.fname + 9, board_disk_name(), 3) == 0) {
+                preferred = i;
+            }
+            if (strcmp(fileinfo.fname, "CPMDISKS") == 0) {
                 selection = i;
+            }
             i++;
         }
     }
+    if (0 <= preferred) {
+        selection = preferred;
+    }
     printf("M: Monitor prompt\n\r");
     if (1 < i) {
-        printf("Select: ");
+        if (0 <= selection) {
+            printf("Select[%d]: ", selection);
+        } else {
+            printf("Select: ");
+        }
         while (1) {
             uint8_t c = (uint8_t)getch_buffered();  // Wait for input char
             if ('0' <= c && c <= '9' && c - '0' < i) {

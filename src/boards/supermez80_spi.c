@@ -107,6 +107,15 @@ static char *supermez80_spi_name()
     }
 }
 
+static char *supermez80_spi_disk_name()
+{
+    if (mcp23s08_is_alive(MCP23S08_ctx)) {
+        return "";
+    } else {
+        return "PIO";
+    }
+}
+
 static void supermez80_spi_sys_init()
 {
     emuz80_common_sys_init();
@@ -409,6 +418,7 @@ void board_init()
     emuz80_common_init();
 
     board_name_hook = supermez80_spi_name;
+    board_disk_name_hook = supermez80_spi_disk_name;
     board_sys_init_hook = supermez80_spi_sys_init;
     board_disk_init_hook = supermez80_spi_disk_init;
     board_bus_master_hook = supermez80_spi_bus_master;

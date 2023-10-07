@@ -217,6 +217,9 @@ extern unsigned int board_ipl_size;
 extern void board_init(void);
 extern char *(*board_name_hook)(void);
 #define board_name() (*board_name_hook)()
+extern char *(*board_disk_name_hook)(void);
+#define board_disk_name() (*board_disk_name_hook)()
+#define is_board_disk_name_available() (board_disk_name_hook != NULL)
 extern void (*board_sys_init_hook)(void);
 #define board_sys_init() (*board_sys_init_hook)()
 extern void (*board_disk_init_hook)(void);
