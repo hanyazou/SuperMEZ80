@@ -53,37 +53,37 @@
 // Constant value definitions
 //
 
-#define UART_CREG        0      // 00h Control REG
-#define UART_DREG        1      // 01h Data REG
-#define DISK_REG_DATA    8      // 08h fdc-port: data (non-DMA)
-#define DISK_REG_DRIVE   10     // 0Ah fdc-port: # of drive
-#define DISK_REG_TRACK   11     // 0Bh fdc-port: # of track
-#define DISK_REG_SECTOR  12     // 0Ch fdc-port: # of sector
-#define DISK_REG_FDCOP   13     // 0Dh fdc-port: command
+#define UART_CREG        PIC_IOBASE+0      // 00h Control REG
+#define UART_DREG        PIC_IOBASE+1      // 01h Data REG
+#define DISK_REG_DATA    PIC_IOBASE+8      // 08h fdc-port: data (non-DMA)
+#define DISK_REG_DRIVE   PIC_IOBASE+10     // 0Ah fdc-port: # of drive
+#define DISK_REG_TRACK   PIC_IOBASE+11     // 0Bh fdc-port: # of track
+#define DISK_REG_SECTOR  PIC_IOBASE+12     // 0Ch fdc-port: # of sector
+#define DISK_REG_FDCOP   PIC_IOBASE+13     // 0Dh fdc-port: command
 #define DISK_OP_DMA_READ     0
 #define DISK_OP_DMA_WRITE    1
 #define DISK_OP_READ         2
 #define DISK_OP_WRITE        3
-#define DISK_REG_FDCST   14     // OEh fdc-port: status
+#define DISK_REG_FDCST   PIC_IOBASE+14     // OEh fdc-port: status
 #define DISK_ST_SUCCESS      0x00
 #define DISK_ST_ERROR        0x01
-#define DISK_REG_DMAL    15     // OFh dma-port: dma address low
-#define DISK_REG_DMAH    16     // 10h dma-port: dma address high
-#define DISK_REG_SECTORH 17     // 11h fdc-port: # of sector high
+#define DISK_REG_DMAL    PIC_IOBASE+15     // OFh dma-port: dma address low
+#define DISK_REG_DMAH    PIC_IOBASE+16     // 10h dma-port: dma address high
+#define DISK_REG_SECTORH PIC_IOBASE+17     // 11h fdc-port: # of sector high
 
-#define MMU_INIT         20     // 14h MMU initialisation
-#define MMU_BANK_SEL     21     // 15h MMU bank select
-#define MMU_SEG_SIZE     22     // 16h MMU select segment size (in pages a 256 bytes)
-#define MMU_WR_PROT      23     // 17h MMU write protect/unprotect common memory segment
+#define MMU_INIT         PIC_IOBASE+20     // 14h MMU initialisation
+#define MMU_BANK_SEL     PIC_IOBASE+21     // 15h MMU bank select
+#define MMU_SEG_SIZE     PIC_IOBASE+22     // 16h MMU select segment size (in pages a 256 bytes)
+#define MMU_WR_PROT      PIC_IOBASE+23     // 17h MMU write protect/unprotect common memory segment
 
-#define MON_CLEANUP      26     // 1Ah clean up monitor mode
-#define MON_PREPARE      27     // 1Bh prepare monitor mode
-#define MON_ENTER        28     // 1Ch enter monitor mode
-#define TGTINV_TRAP      29     // 1Dh return from target CPU invocation
-#define MON_PREPARE_NMI  30     // 1Eh prepare monitor mode for NMI
-#define MON_ENTER_NMI    31     // 1Fh enter monitor mode for NMI
+#define MON_CLEANUP      PIC_IOBASE+26     // 1Ah clean up monitor mode
+#define MON_PREPARE      PIC_IOBASE+27     // 1Bh prepare monitor mode
+#define MON_ENTER        PIC_IOBASE+28     // 1Ch enter monitor mode
+#define TGTINV_TRAP      PIC_IOBASE+29     // 1Dh return from target CPU invocation
+#define MON_PREPARE_NMI  PIC_IOBASE+30     // 1Eh prepare monitor mode for NMI
+#define MON_ENTER_NMI    PIC_IOBASE+31     // 1Fh enter monitor mode for NMI
 
-#define HW_CTRL          160    // A0h hardware control
+#define HW_CTRL          160               // A0h hardware control
 #define HW_CTRL_LOCKED       0xff
 #define HW_CTRL_UNLOCKED     0x00
 #define HW_CTRL_MAGIC        0xaa
@@ -211,7 +211,6 @@ extern void mmu_bank_config(int nbanks);
 extern void mmu_bank_select(int bank);
 
 // board
-extern uint8_t board_io_base;
 extern const uint8_t *board_ipl;
 extern unsigned int board_ipl_size;
 

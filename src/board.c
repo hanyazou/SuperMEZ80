@@ -23,7 +23,6 @@
 
 #include <supermez80.h>
 
-uint8_t board_io_base = 0;
 const uint8_t *board_ipl = NULL;
 unsigned int board_ipl_size = 0;
 

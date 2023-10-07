@@ -252,7 +252,6 @@ void board_init()
 {
     emuz80_common_init();
 
-    board_io_base = 0x40;
     board_ipl = ipl;
     board_ipl_size = sizeof(ipl);
 
