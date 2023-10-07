@@ -142,6 +142,8 @@ ID_Z80:
 	LD	HL,HLOMSG
 	call	STROUT
 
+	IM	0		;select interrupt mode 0
+	EI			;eneble interrupt
 ; load boot
 	LD	BC,1		;b=track 0, c=sector 1
 	LD	HL,BOOT		;base transfer address
