@@ -53,8 +53,8 @@
 // Constant value definitions
 //
 
-#define UART_DREG 0x01          // 01h Data REG
-#define UART_CREG 0x00          // 00h Control REG
+#define UART_CREG        0      // 00h Control REG
+#define UART_DREG        1      // 01h Data REG
 #define DISK_REG_DATA    8      // 08h fdc-port: data (non-DMA)
 #define DISK_REG_DRIVE   10     // 0Ah fdc-port: # of drive
 #define DISK_REG_TRACK   11     // 0Bh fdc-port: # of track
@@ -76,19 +76,19 @@
 #define MMU_SEG_SIZE     22     // 16h MMU select segment size (in pages a 256 bytes)
 #define MMU_WR_PROT      23     // 17h MMU write protect/unprotect common memory segment
 
+#define MON_CLEANUP      26     // 1Ah clean up monitor mode
+#define MON_PREPARE      27     // 1Bh prepare monitor mode
+#define MON_ENTER        28     // 1Ch enter monitor mode
+#define TGTINV_TRAP      29     // 1Dh return from target CPU invocation
+#define MON_PREPARE_NMI  30     // 1Eh prepare monitor mode for NMI
+#define MON_ENTER_NMI    31     // 1Fh enter monitor mode for NMI
+
 #define HW_CTRL          160    // A0h hardware control
 #define HW_CTRL_LOCKED       0xff
 #define HW_CTRL_UNLOCKED     0x00
 #define HW_CTRL_MAGIC        0xaa
 #define HW_CTRL_RESET        (1 << 6)
 #define HW_CTRL_HALT         (1 << 7)
-
-#define MON_CLEANUP      170    // AAh clean up monitor mode
-#define MON_PREPARE      171    // ABh prepare monitor mode
-#define MON_ENTER        172    // ACh enter monitor mode
-#define TGTINV_TRAP      173    // ADh return from target CPU invocation
-#define MON_PREPARE_NMI  174    // AEh prepare monitor mode for NMI
-#define MON_ENTER_NMI    175    // AFh enter monitor mode for NMI
 
 #define MMU_INVALID_BANK 0xff
 

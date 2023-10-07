@@ -15,21 +15,7 @@ NSECTS	EQU	(BIOS-CCP)/128	;warm start sector count
 CDISK	EQU	0004H		;current disk number 0=A,...,15=P
 IOBYTE	EQU	0003H		;intel i/o byte
 ;
-;	I/O ports
-;
-CONSTA	EQU	0		;console status port
-CONDAT	EQU	1		;console data port
-PRTSTA	EQU	2		;printer status port
-PRTDAT	EQU	3		;printer data port
-AUXDAT	EQU	5		;auxiliary data port
-FDCDAT	EQU	8		;fdc-port: data (non-DMA)
-FDCD	EQU	10		;fdc-port: # of drive
-FDCT	EQU	11		;fdc-port: # of track
-FDCS	EQU	12		;fdc-port: # of sector
-FDCOP	EQU	13		;fdc-port: command
-FDCST	EQU	14		;fdc-port: status
-DMAL	EQU	15		;dma-port: dma address low
-DMAH	EQU	16		;dma-port: dma address high
+	.include "supermez80_asm.inc"
 ;
 	ORG	BIOS		;origin of this program
 ;

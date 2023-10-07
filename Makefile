@@ -61,7 +61,7 @@ HEXFILE ?= $(shell echo $(BOARD)-$(PIC).hex | tr A-Z a-z)
 
 ASM_DIR ?= $(PJ_DIR)/tools/zasm
 ASM ?= $(ASM_DIR)/zasm
-ASM_OPTS ?= --opcodes --bin --target=ram
+ASM_OPTS ?= --opcodes --bin --target=ram --reqcolon
 
 FATFS_SRCS ?= $(FATFS_DIR)/source/ff.c
 DISK_SRCS ?= \
@@ -69,18 +69,25 @@ DISK_SRCS ?= \
 SRCS ?= $(SRC_DIR)/supermez80.c $(SRC_DIR)/disas.c $(SRC_DIR)/disas_z80.c $(SRC_DIR)/memory.c \
     $(SRC_DIR)/monitor.c $(SRC_DIR)/io.c $(SRC_DIR)/board.c
 
+#
+# board dependent stuff
+#
 ifeq ($(BOARD),SUPERMEZ80_SPI)
-SRCS += $(SRC_DIR)/boards/supermez80_spi.c
-SRCS += $(SRC_DIR)/boards/supermez80_spi_ioexp.c
+    SRCS += $(SRC_DIR)/boards/supermez80_spi.c
+    SRCS += $(SRC_DIR)/boards/supermez80_spi_ioexp.c
+    PIC_IOBASE = 0
 endif
 ifeq ($(BOARD),SUPERMEZ80_CPM)
-SRCS += $(SRC_DIR)/boards/supermez80_cpm.c
+    SRCS += $(SRC_DIR)/boards/supermez80_cpm.c
+    PIC_IOBASE = 0
 endif
 ifeq ($(BOARD),EMUZ80_57Q)
-SRCS += $(SRC_DIR)/boards/emuz80_57q.c
+    SRCS += $(SRC_DIR)/boards/emuz80_57q.c
+    PIC_IOBASE = 0
 endif
 ifeq ($(BOARD),Z8S180_57Q)
-SRCS += $(SRC_DIR)/boards/z8s180_57q.c
+    SRCS += $(SRC_DIR)/boards/z8s180_57q.c
+    PIC_IOBASE = 64
 endif
 
 DEFS += -DSUPERMEZ80_CPM_MMU
@@ -88,9 +95,8 @@ DEFS += -DSUPERMEZ80_CPM_MMU
 #DEFS += -DNO_MEMORY_CHECK
 #DEFS += -DNO_MON_BREAKPOINT
 #DEFS += -DNO_MON_STEP
-ifneq ($(origin Z80_CLK_HZ), undefined)
-    DEFS += -DZ80_CLK_HZ=$(Z80_CLK_HZ)
-endif
+DEFS += -DZ80_CLK_HZ=$(Z80_CLK_HZ)
+DEFS += -DPIC_IOBASE=$(PIC_IOBASE)
 
 INCS ?=-I$(SRC_DIR) -I$(DRIVERS_DIR) -I$(FATFS_DIR)/source -I$(BUILD_DIR)
 
@@ -109,32 +115,38 @@ HDRS ?= $(SRC_DIR)/supermez80.h $(SRC_DIR)/picconfig.h \
         $(DRIVERS_DIR)/mcp23s08.c \
         $(SRC_DIR)/boards/emuz80_common.c
 
+ASM_HDRS = $(BUILD_DIR)/supermez80_asm.inc \
+	$(BUILD_DIR)/config_asm.inc \
+
 all: $(BUILD_DIR)/$(HEXFILE) \
     $(BUILD_DIR)/CPMDISKS.PIO/drivea.dsk \
     $(BUILD_DIR)/CPMDISKS.180/drivea.dsk
 
-$(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS)
+$(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS) $(ASM_HDRS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
         $(XC8) $(XC8_OPTS) $(DEFS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
         mv supermez80.hex $(HEXFILE)
 
-$(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(ASM) $(BUILD_DIR)/config_asm.inc
-	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(ASM) $(ASM_OPTS) -l $*.lst -o $*.bin $< && \
-        cat $*.bin | xxd -i > $@
-
-$(BUILD_DIR)/%.inc: $(SRC_DIR)/boards/%.z80 $(ASM) $(BUILD_DIR)/config_asm.inc
+$(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(ASM) $(ASM_HDRS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
         cp $< . && \
         $(ASM) $(ASM_OPTS) -l $*.lst -o $*.bin $*.z80 && \
         cat $*.bin | xxd -i > $@
 
-$(BUILD_DIR)/boot.bin: $(CPM2_DIR)/boot.asm $(BUILD_DIR) $(ASM)
+$(BUILD_DIR)/%.inc: $(SRC_DIR)/boards/%.z80 $(ASM) $(ASM_HDRS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(ASM) $(ASM_OPTS) -o $@ $<
-$(BUILD_DIR)/bios.bin: $(CPM2_DIR)/bios.asm $(BUILD_DIR) $(ASM)
+        cp $< . && \
+        $(ASM) $(ASM_OPTS) -l $*.lst -o $*.bin $*.z80 && \
+        cat $*.bin | xxd -i > $@
+
+$(BUILD_DIR)/boot.bin: $(CPM2_DIR)/boot.asm $(BUILD_DIR) $(ASM) $(ASM_HDRS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(ASM) $(ASM_OPTS) -o $@ $<
+        cp $< . && \
+        $(ASM) $(ASM_OPTS) -l boot.lst -o boot.bin boot.asm
+$(BUILD_DIR)/bios.bin: $(CPM2_DIR)/bios.asm $(BUILD_DIR) $(ASM) $(ASM_HDRS)
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
+        cp $< . && \
+        $(ASM) $(ASM_OPTS) -l bios.lst -o bios.bin bios.asm
 
 $(BUILD_DIR)/CPMDISKS.PIO/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
@@ -143,11 +155,11 @@ $(BUILD_DIR)/CPMDISKS.PIO/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bi
 	dd if=boot.bin of=$@ bs=128 seek=0  count=1 conv=notrunc; \
 	dd if=bios.bin of=$@ bs=128 seek=45 count=6 conv=notrunc
 
-$(BUILD_DIR)/boot_z180.bin: $(CPM2_DIR)/boot_z180.asm $(BUILD_DIR) $(ASM)
+$(BUILD_DIR)/boot_z180.bin: $(CPM2_DIR)/boot_z180.asm $(BUILD_DIR) $(ASM) $(ASM_HDRS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
         cp $< . && \
         $(ASM) $(ASM_OPTS) -o $@ boot_z180.asm
-$(BUILD_DIR)/bios_z180.bin: $(CPM2_DIR)/bios_z180.asm $(BUILD_DIR) $(ASM)
+$(BUILD_DIR)/bios_z180.bin: $(CPM2_DIR)/bios_z180.asm $(BUILD_DIR) $(ASM) $(ASM_HDRS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
         cp $< . && \
         $(ASM) $(ASM_OPTS) -o $@ bios_z180.asm
@@ -159,12 +171,14 @@ $(BUILD_DIR)/CPMDISKS.180/drivea.dsk: $(BUILD_DIR)/boot_z180.bin $(BUILD_DIR)/bi
 	dd if=boot_z180.bin of=$@ bs=128 seek=0  count=1 conv=notrunc; \
 	dd if=bios_z180.bin of=$@ bs=128 seek=45 count=6 conv=notrunc
 
-$(CPM2_DIR)/boot_z180.asm: $(BUILD_DIR)/config_asm.inc
-$(CPM2_DIR)/bios_z180.asm: $(BUILD_DIR)/config_asm.inc
+$(BUILD_DIR)/supermez80_asm.inc: $(SRC_DIR)/supermez80_asm.inc
+	mkdir -p $(BUILD_DIR)
+	cp -p $(SRC_DIR)/supermez80_asm.inc $(BUILD_DIR)/supermez80_asm.inc
 
 $(BUILD_DIR)/config_asm.inc: Makefile
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
 	rm -f $@
+	echo "PIC_IOBASE	EQU	$(PIC_IOBASE)" >> $@; \
 	if [ "$(Z180_UART)" != 0 ]; then \
 	    echo "UART_180	EQU	1" >> $@; \
 	    echo "UART_PIC	EQU	0" >> $@; \

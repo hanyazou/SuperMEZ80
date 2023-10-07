@@ -14,17 +14,10 @@ BOOT	EQU	BIOS
 SIZE	EQU	BIOS+BIOSL-CCP	;size of cp/m system
 SECTS	EQU	SIZE/128	;# of sectors to load
 ;
-;	I/O ports
-;
-CONDAT	EQU	1		;console data port
-FDCDAT	EQU	8		;fdc-port: data (non-DMA)
-DRIVE   EQU	10		;fdc-port: # of drive
-TRACK   EQU	11		;fdc-port: # of track
-SECTOR  EQU	12		;fdc-port: # of sector
-FDCOP   EQU	13		;fdc-port: command
-FDCST   EQU	14		;fdc-port: status
-DMAL    EQU	15		;dma-port: dma address low
-DMAH    EQU	16		;dma-port: dma address high
+	.include "supermez80_asm.inc"
+DRIVE   EQU	FDCD
+TRACK   EQU	FDCT
+SECTOR  EQU	FDCS
 ;
 	JP	COLD
 ;

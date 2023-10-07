@@ -1,5 +1,4 @@
 	.z180
-	.include "config_asm.inc"
 ;	CP/M 2.2 boot-loader for Z80-Simulator
 ;
 ;	Copyright (C) 1988-2007 by Udo Munk
@@ -16,35 +15,11 @@ BOOT	EQU	BIOS
 SIZE	EQU	BIOS+BIOSL-CCP	;size of cp/m system
 SECTS	EQU	SIZE/128	;# of sectors to load
 ;
-;	I/O ports
+	.include "supermez80_asm.inc"
+DRIVE   EQU	FDCD
+TRACK   EQU	FDCT
+SECTOR  EQU	FDCS
 ;
-	if	UART_180
-IOBASE		EQU	00h
-UART_RX		EQU	IOBASE+08h	; UART DATA REGISTOR
-UART_TX		EQU	IOBASE+06h
-UARTCR_180	EQU	IOBASE+04h	; UART CONTROL REGISTOR
-	endif
-
-	if	UART_PIC
-CONDAT	EQU	41h		;console data port
-	endif
-
-FDCDAT	EQU	48h		;fdc-port: data (non-DMA)
-DRIVE   EQU	4ah		;fdc-port: # of drive
-TRACK   EQU	4bh		;fdc-port: # of track
-SECTOR  EQU	4ch		;fdc-port: # of sector
-FDCOP   EQU	4dh		;fdc-port: command
-FDCST   EQU	4eh		;fdc-port: status
-DMAL    EQU	4fh		;dma-port: dma address low
-DMAH    EQU	50h		;dma-port: dma address high
-;
-D_DMA_READ	equ	0
-D_DMA_WRITE	equ	1
-D_READ		equ	2
-D_WRITE		equ	3
-D_SUCCESS	equ	0
-D_ERROR		equ	1
-
 	JP	COLD
 ;
 ERRMSG:	DEFB	"BOOT: error booting"

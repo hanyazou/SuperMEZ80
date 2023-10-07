@@ -1,5 +1,5 @@
 	.z180
-	.include "config_asm.inc"
+	.include "supermez80_asm.inc"
 ;	Z80 CBIOS for Z80-Simulator
 ;
 ;	Copyright (C) 1988-2007 by Udo Munk
@@ -16,41 +16,6 @@ BIOS	EQU	CCP+1600H	;base of bios
 NSECTS	EQU	(BIOS-CCP)/128	;warm start sector count
 CDISK	EQU	0004H		;current disk number 0=A,...,15=P
 IOBYTE	EQU	0003H		;intel i/o byte
-;
-;	I/O ports
-;
-	if	UART_180
-IOBASE		EQU	00h
-UART_RX		EQU	IOBASE+08h	; UART DATA REGISTOR
-UART_TX		EQU	IOBASE+06h
-UARTCR_180	EQU	IOBASE+04h	; UART CONTROL REGISTOR
-	endif
-
-	if	UART_PIC
-CONSTA	EQU	40h		;console status port
-CONDAT	EQU	41h		;console data port
-	endif
-
-PRTSTA	EQU	2		;printer status port
-PRTDAT	EQU	3		;printer data port
-AUXDAT	EQU	5		;auxiliary data port
-
-FDCDAT	EQU	48h		;fdc-port: data (non-DMA)
-FDCD	EQU	4ah		;fdc-port: # of drive
-FDCT	EQU	4bh		;fdc-port: # of track
-FDCS	EQU	4ch		;fdc-port: # of sector
-FDCOP	EQU	4dh		;fdc-port: command
-FDCST	EQU	4eh		;fdc-port: status
-DMAL	EQU	4fh		;dma-port: dma address low
-DMAH	EQU	50h		;dma-port: dma address high
-
-D_DMA_READ	equ	0
-D_DMA_WRITE	equ	1
-D_READ		equ	2
-D_WRITE		equ	3
-D_SUCCESS	equ	0
-D_ERROR		equ	1
-
 ;
 	ORG	BIOS		;origin of this program
 ;

@@ -23,16 +23,8 @@
 ; WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 ; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 ; OTHER DEALINGS IN THE SOFTWARE.
-
 ;
-;	I/O ports
-;
-CONDAT		EQU	1	; console output port
-MON_CLEANUP	EQU	170	; clean up monitor mode
-MON_PREPARE	EQU	171	; prepare monitor mode
-MON_ENTER	EQU	172	; clean up monitor mode
-MON_PREPARE_NMI	EQU	174	; prepare monitor mode for NMI
-MON_ENTER_NMI	EQU	175	; enter monitor mode for NMI
+	.include "supermez80_asm.inc"
 ;
 ;	start of zero page
 ;
@@ -64,7 +56,7 @@ TGTINV_GATE	EQU	0000h	; reset vector
 	LD	HL,TGTINV_GATE
 	LD	(HL),0D3h	; OUT (MON_ENTER_NMI),A
 	INC	HL
-	LD	(HL),175
+	LD	(HL),MON_ENTER_NMI
 	JP	TGTINV_GATE
 
 ;
