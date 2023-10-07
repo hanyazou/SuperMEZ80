@@ -105,7 +105,9 @@ HDRS ?= $(SRC_DIR)/supermez80.h $(SRC_DIR)/picconfig.h \
         $(DRIVERS_DIR)/mcp23s08.c \
         $(SRC_DIR)/boards/emuz80_common.c
 
-all: $(BUILD_DIR)/$(HEXFILE) $(BUILD_DIR)/drivea.dsk
+all: $(BUILD_DIR)/$(HEXFILE) \
+    $(BUILD_DIR)/CPMDISKS.PIO/drivea.dsk \
+    $(BUILD_DIR)/CPMDISKS.180/drivea.dsk
 
 $(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS)
 	cd $(BUILD_DIR) && \
@@ -129,11 +131,26 @@ $(BUILD_DIR)/bios.bin: $(CPM2_DIR)/bios.asm $(BUILD_DIR) $(ASM)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
         $(ASM) $(ASM_OPTS) -o $@ $<
 
-$(BUILD_DIR)/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
+$(BUILD_DIR)/CPMDISKS.PIO/drivea.dsk: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/bios.bin
 	cd $(BUILD_DIR); \
-	dd if=$(CPM2_DIR)/z80pack-cpm2-1.dsk of=drivea.dsk bs=128; \
-	dd if=boot.bin of=drivea.dsk bs=128 seek=0  count=1 conv=notrunc; \
-	dd if=bios.bin of=drivea.dsk bs=128 seek=45 count=6 conv=notrunc
+	mkdir -p CPMDISKS.PIO; \
+	dd if=$(CPM2_DIR)/z80pack-cpm2-1.dsk of=$@ bs=128; \
+	dd if=boot.bin of=$@ bs=128 seek=0  count=1 conv=notrunc; \
+	dd if=bios.bin of=$@ bs=128 seek=45 count=6 conv=notrunc
+
+$(BUILD_DIR)/boot_z180.bin: $(CPM2_DIR)/boot_z180.asm $(BUILD_DIR) $(ASM)
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
+        $(ASM) $(ASM_OPTS) -o $@ $<
+$(BUILD_DIR)/bios_z180.bin: $(CPM2_DIR)/bios_z180.asm $(BUILD_DIR) $(ASM)
+	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
+        $(ASM) $(ASM_OPTS) -o $@ $<
+
+$(BUILD_DIR)/CPMDISKS.180/drivea.dsk: $(BUILD_DIR)/boot_z180.bin $(BUILD_DIR)/bios_z180.bin
+	cd $(BUILD_DIR); \
+	mkdir -p CPMDISKS.180; \
+	dd if=$(CPM2_DIR)/z80pack-cpm2-1.dsk of=$@ bs=128; \
+	dd if=boot_z180.bin of=$@ bs=128 seek=0  count=1 conv=notrunc; \
+	dd if=bios_z180.bin of=$@ bs=128 seek=45 count=6 conv=notrunc
 
 upload: $(BUILD_DIR)/$(HEXFILE) $(PP3_DIR)/pp3
 	cd $(PP3_DIR) && ./pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE)
