@@ -87,7 +87,7 @@ ifeq ($(BOARD),EMUZ80_57Q)
 endif
 ifeq ($(BOARD),Z8S180_57Q)
     SRCS += $(SRC_DIR)/boards/z8s180_57q.c
-    PIC_IOBASE = 64
+    PIC_IOBASE = 128
 endif
 
 DEFS += -DSUPERMEZ80_CPM_MMU

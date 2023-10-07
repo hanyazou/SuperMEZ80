@@ -176,10 +176,10 @@ static void emuz80_57q_start_z80(void)
     emuz80_common_start_z80();
 
     //
-    // CLC1: /IOREQ -> /WAIT( if IO_ADR >= 0x40 )
+    // CLC1: /IOREQ -> /WAIT( if IO_ADR >= 0x80 )
     //
-    CLCIN0PPS = 0x00;               // CLCIN0PPS = RA0(/IORQ)
-    CLCIN2PPS = 0x0e;               // CLCIN2PPS = RB6(A6)
+    CLCIN0PPS = PPS_INA0;           // CLCIN0PPS = RA0(/IORQ)
+    CLCIN2PPS = PPS_INB7;           // CLCIN2PPS = RB7(A7)
 
     CLCSELECT = 0;                  // Select CLC1
     CLCnCON = 0x00;                 // Disable CLC
