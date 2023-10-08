@@ -14,10 +14,11 @@ z80packのCP/Mのディスクイメージを起動することができます。
 * Z80に割り込み機能を使って、Z80動作中にPICからレジスタやメモリを読み出すことができます。
 * 基板依存部分をsrc/boards以下に分離しており、EMUZ80と似た構成の基板への移植が容易です。
 
-![SuperMEZ80-SPI and EMUZ80](imgs/supermez80-spi-and-emuz80.png)  
-Z80 Single-Board Computer EMUZ80 と SuperMEZ80-SPI
+<img src="imgs/supermez80-cpm-and-emuz80.png" alt="SuperMEZ80-CPM and EMUZ80" width="100%">
 
-## メザニンボード
+Z80 Single-Board Computer EMUZ80 と SuperMEZ80-CPM
+
+## 対応基板
 複数のボードに対応しています。ビルド時の指定で切り替えます。
 
 ### MEZ80SD
@@ -27,12 +28,16 @@ Satoshi Okueさん(@S_Okue)さんのMEZ80RAMとEMUZ80-LEDを元にSPIインタ�
 https://github.com/satoshiokue/MEZ80SD  
 ビルドパラメータ: BOARD=SUPERMEZ80_SPI PIC=18F47Q43
 
+<img src="imgs/IMG_MEZ80SD.jpg" alt="MEZ80SD board" width="24%">
+
 ### SuperMEZ80-SPI
 I/O expanderで、メモリのバンク切り替えや、NMIを使用することができます。
 MEZ80SDではPICとSRAMのA14が接続されていますが、これを諦めて代わりにSPIの/CSに使用することにより、I/O expander (MCP23S08)を接続しています。
 SPIのMOSI/MISO/SCKはZ80のデータバスと共用です。  
 https://github.com/hanyazou/SuperMEZ80-SPI  
 ビルドパラメータ: BOARD=SUPERMEZ80_SPI PIC=18F47Q43
+
+<img src="imgs/IMG_SuperMEZ80-SPI.jpg" alt="SuperMEZ80-SPI board" width="24%">
 
 ### SuperMEZ80-CPM
 I/O expanderなしで、メモリのバンク切り替えや、NMIを使用することができます。
@@ -43,6 +48,8 @@ Z84C0020(20MHz版)との組み合わせで、PICのNCOで設定できる最高�
 https://github.com/hanyazou/SuperMEZ80-CPM  
 ビルドパラメータ: BOARD=SUPERMEZ80_CPM PIC=18F47Q43
 
+<img src="imgs/IMG_SuperMEZ80-CPM.jpg" alt="SuperMEZ80-CPM board" width="24%">
+
 ### EMUZ80-57Q
 @Gazelle8087 さんのEMUZ80強化版シングルボードコンピュータです。
 オリジナルEMUZ80のPIC 18F47Q(40ピン)の代わりにPIC 18F57Q(48ピン)を使うことにより、
@@ -50,6 +57,19 @@ I/O expanderなしでSD Card slotのためのSPIと、Z80のアドレスバスA0
 残念ながらバンク切り替え機能がないので、SRAMは64KBまでです。  
 https://twitter.com/Gazelle8087/status/1651571441727578112  
 ビルドパラメータ: BOARD=EMUZ80_57Q PIC=18F57Q43
+
+<img src="imgs/IMG_EMUZ80-57Q.jpg" alt="EMUZ80-57Q board" width="24%">
+
+### Z8S180-57Q
+@Gazelle8087 さんのEMUZ80-57Qを元にしたシングルボードコンピュータです。
+ターゲットの CPU が Z80 から上位互換の Z8S180 に変更されています。
+Z8S180にはZ80のクロック20MHzを大きく超える、33MHz版が存在するため、高速動作が期待できます。
+Z8S180はMMUを内蔵していますが、本SuperMEZ80ではZ8S180のMMUをサポートしていないため、
+残念ながらSRAMは64KBまでです。  
+https://twitter.com/Gazelle8087/status/1708072678702379033  
+ビルドパラメータ: BOARD=Z8S180_57Q PIC=18F57Q43
+
+<img src="imgs/IMG_Z8S180-57Q.jpg" alt="Z8S180-57Q board" width="24%">
 
 ## ビルド
 
@@ -173,28 +193,29 @@ SuperMEZ80-SPI用のファームウェアでは、rom[]に小さなプログラ�
 これが実行されるとSDカードのディスクイメージの最初のセクタを読み込んで実行されます。
 
 SDカードのディスクイメージは、
-SDカードにCPMDISKSというフォルダを作成し、
-ファームウェアをビルドしてできたbuild/drivea.dskをコピーしておきます。
+SDカードにCPMDISKSというフォルダを作成し、z80pack のディスクイメージか、または、
+ファームウェアをビルドしてできたbuild.*/CPMDISKS.*/drivea.dskをコピーしておきます。
 SDカードにCPMDISKSで始まる名前のフォルダが複数ある場合は、起動時に以下のように出力されるので、どれを使用するのか選択します。
 ```
 Memory 000000 - 010000H 64 KB OK
 0: CPMDISKS
 1: CPMDISKS.3
 2: CPMDISKS.PIO
+3: CPMDISKS.180
 M: Monitor prompt
-Select: 
+Select[0]: 
 ```
+
+通常とは異なるディスクイメージでないと起動しない場合は、デフォルトで適切なディスクイメージが選択される場合があります。
 
 注意: SDカードはFAT32でフォーマットされている必要があります。
 32GB以上の容量のSD XCで使用されるexFAT(FAT64)はサポートされません。
 32GBより小さいサイズのSD HCカードを使用するか、またはPCなどでFAT32で再初期化したものを使用してください。
 
 ### ディスクイメージの修正について
-build/drivea.dskは、z80packのCP/M 2.2用起動ディスクを修正したものです。
-ディスクの読み書きをDMAでなく、プログラムI/Oに変更しています。
-I/O expanderを使用できない場合は、CP/Mの起動にこのプログラムI/Oの修正が必要です。
-具体的な修正内容は、同じフォルダのboot.asm, bios.asmの履歴を参照してください。
-置き換え手順はMakefileを参照してください。
+ビルド時に作成される
+build.*/CPMDISKS.*/drivea.dskは、z80packのCP/M 2.2用起動ディスクを修正したものです。
+これらイメージの作成手順はMakefileを参照してください。
 
 SuperMEZ80-SPI I/O expander付きなどを使用する場合は、
 z80packのCP/M起動ディスクを無修正で使うことができます。
@@ -204,8 +225,22 @@ SuperMEZ80-SPI  I/O expander付きおよびSuperMEZ80-CPMでは、
 AS6C4008などの2Mbit(256KB)以上のSRAMとの組み合わせで
 banked biosのCP/M 3.0を起動することができます。
 
-ディスクイメージの詳細は、udo-munk/z80packを参照してください。
+z80pack ディスクイメージの詳細は、udo-munk/z80packを参照してください。
 https://github.com/udo-munk/z80pack
+
+#### CPMDISKS.PIO/drivea.dsk
+ディスクの読み書きをDMAでなく、プログラムI/Oに変更しています。
+I/O expanderを使用できない場合は、CP/Mの起動にこのプログラムI/Oの修正が必要です。
+具体的な修正内容は、cpm2 フォルダのboot.asm, bios.asmの履歴を参照してください。
+
+#### CPMDISKS.180/drivea.dsk
+Z8S180 は、CPU自体に幾つかの周辺機器や拡張レジスタを内蔵しており、これらのアクセスに 00h 付近の
+I/O アドレスを使用します。
+このためZ8S180-57Q基板は、z80packのディスクイメージとはメージとは異なるI/Oアドレスを使用する必要が
+あります。
+build.z8s180_57q.18f57q43/CPMDISKS.180/drivea.dsk は、シリアル入出力やSDカードへのアクセスを
+通常の 00h 付近から 80h 付近に変更したものです。
+具体的な修正内容は、cpm2 フォルダのboot\_z180.asm, bios\_z180.asmの履歴を参照してください。
 
 ## サポート状況
 
@@ -213,8 +248,13 @@ https://github.com/udo-munk/z80pack
 | ---            | ---     | ---          | ---          | ---          | ---      | ---    | ---        |
 | SuperMEZ80-SPI | 512KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
 | SuperMEZ80-CPM | 256KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
-| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | ok     | cpm-v2.5.1 |
-| MEZ80SD        | 64KB    | available    | ok           | n/a          | n/a      | n/a    | cpm-v2.5.1 |
+| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | ok     | cpm-v2.6.0 |
+| Z8S180-57Q     | 64KB    | available    | ok *2        | ok *1        | n/a      | NG *3  | cpm-v2.6.0 |
+| MEZ80SD        | 64KB    | available    | ok           | n/a          | n/a      | n/a    | cpm-v2.6.0 |
+
+*1 CPMDISKS.180/drivea.dsk が必要です  
+*2 PIO 版の CPMDISKS.180/drivea.dsk を作成する必要があります（通常はDMAで使用してください）  
+*3 安定して動作しません(2023-10-08)
 
 ## 謝辞
 シンプルで美しいEMUZ80を開発された電脳伝説さんに感謝します。  
