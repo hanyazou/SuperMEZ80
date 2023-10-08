@@ -413,6 +413,7 @@ WRITE:
 	else
 	LD	A,D_DMA_WRITE	;write command -> A
 	endif
+	OUT	(FDCOP),A	;start i/o operation
 
 	if BYTE_RW
 
