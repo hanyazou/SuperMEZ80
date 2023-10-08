@@ -175,7 +175,20 @@ extern void io_set_interrupt_data(uint8_t data);
 // monitor
 extern int invoke_monitor;
 extern unsigned int mon_step_execution;
-
+#if defined(NO_MONITOR)
+static inline void mon_init(void) {};
+static inline void mon_assert_interrupt(void) {};
+static inline void mon_setup(void) {};
+static inline void mon_prepare(void) {};
+static inline void mon_prepare_nmi(void) {};
+static inline void mon_enter(void) {};
+static inline void mon_enter_nmi(void) {};
+static inline void mon_start(void) {};
+static inline int mon_prompt(void) { return MON_CMD_EXIT; }
+static inline void mon_use_zeropage(int bank, unsigned int size) {};
+static inline void mon_leave(void) {};
+static inline void mon_cleanup(void) {};
+#else  // defined(NO_MONITOR)
 void mon_init(void);
 void mon_assert_interrupt(void);
 void mon_setup(void);
@@ -188,6 +201,7 @@ int mon_prompt(void);
 void mon_use_zeropage(int bank, unsigned int size);
 void mon_leave(void);
 void mon_cleanup(void);
+#endif  // defined(NO_MONITOR)
 
 // memory
 extern int mmu_bank;
