@@ -1,3 +1,5 @@
+	.z180
+	.include "supermez80_asm.inc"
 ;	Z80 CBIOS for Z80-Simulator
 ;
 ;	Copyright (C) 1988-2007 by Udo Munk
@@ -14,8 +16,6 @@ BIOS	EQU	CCP+1600H	;base of bios
 NSECTS	EQU	(BIOS-CCP)/128	;warm start sector count
 CDISK	EQU	0004H		;current disk number 0=A,...,15=P
 IOBYTE	EQU	0003H		;intel i/o byte
-;
-	.include "supermez80_asm.inc"
 ;
 	ORG	BIOS		;origin of this program
 ;
@@ -220,6 +220,7 @@ GOCPM:
 ;
 ;	console status, return 0ffh if character ready, 00h if not
 ;
+	if UART_PIC
 CONST:	IN	A,(CONSTA)	;get console status
 	RET
 ;
@@ -233,6 +234,35 @@ CONIN:	IN	A,(CONDAT)	;get character from console
 CONOUT: LD	A,C		;get to accumulator
 	OUT	(CONDAT),A	;send character to console
 	RET
+	endif
+
+	if UART_180
+CONST:
+	IN0	A,(UARTCR_180)
+	AND	80h
+	RET	Z
+	ld	a, 0ffh
+	ret
+;
+;	console character into register a
+;
+CONIN:
+	IN0	A,(UARTCR_180)
+	bIT	7,A
+	JR	Z,CONIN
+	IN0	A,(UART_RX)
+	RET
+;
+;	console character output from register c
+;
+CONOUT:
+	IN0	A,(UARTCR_180)
+	BIT	1,A
+	JR	Z,CONOUT
+	ld	a, c
+	OUT0	(UART_TX),A
+	RET
+	endif
 ;
 ;	list character from register c
 ;
@@ -338,10 +368,19 @@ SETDMA: LD	A,C		;low order address
 ;
 ;	perform read operation
 ;
-READ:	LD	A,2		;read command -> A
+READ:
+	if BYTE_RW
+	LD	A,D_READ	;read command -> A
+	else
+	LD	A,D_DMA_READ	;read command -> A
+	endif
+
 	OUT	(FDCOP),A	;start i/o operation
 	IN	A,(FDCST)	;status of i/o operation -> A
 	OR	A
+
+	if BYTE_RW
+
 	RET	NZ		;return if an error occurred
 	; read 128 bytes from the I/O port
 	PUSH	DE
@@ -360,13 +399,24 @@ LREAD:
 	POP	HL
 	POP	DE
 	LD	A,0
-	RET
 
+	endif
+
+	RET
 ;
 ;	perform a write operation
 ;
-WRITE:	LD	A,3		;write command -> A
+WRITE:
+
+	if BYTE_RW
+	LD	A,D_WRITE	;write command -> A
+	else
+	LD	A,D_DMA_WRITE	;write command -> A
+	endif
 	OUT	(FDCOP),A	;start i/o operation
+
+	if BYTE_RW
+
 	; write 128 bytes from the I/O port
 	PUSH	DE
 	PUSH	HL
@@ -383,6 +433,9 @@ LWRITE:
 	JP	NZ,LWRITE
 	POP	HL
 	POP	DE
+
+	endif
+
 	IN	A,(FDCST)	;status of i/o operation -> A
 	RET
 ;

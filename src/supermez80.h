@@ -24,7 +24,9 @@
 //#define CPM_MMU_EXERCISE
 //#define CPM_MON_DEBUG
 
-// Z80 clock frequency (select one or use external clock)
+// Z80 clock frequency
+#ifndef Z80_CLK_HZ
+//#define Z80_CLK_HZ 0UL              //  use external clock
 //#define Z80_CLK_HZ 499712UL         //  0.5 MHz (NCOxINC = 0x04000, 64MHz/64/2)
 //#define Z80_CLK_HZ 999424UL         //  1.0 MHz (NCOxINC = 0x08000, 64MHz/32/2)
 //#define Z80_CLK_HZ 1998848UL        //  2.0 MHz (NCOxINC = 0x10000, 64MHz/16/2)
@@ -34,8 +36,9 @@
 #define Z80_CLK_HZ 6396277UL        //  6.4 MHz (NCOxINC = 0x33333, 64MHz/5/2)
 //#define Z80_CLK_HZ 7995392UL        //  8.0 MHz (NCOxINC = 0x40000, 64MHz/4/2)
 //#define Z80_CLK_HZ 10660482UL       // 10.7 MHz (NCOxINC = 0x55555, 64MHz/3/2)
-//#define Z80_CLK_HZ 12792615UL       //  12.8 MHz (NCOxINC = 0x66666, 64MHz/5)
+//#define Z80_CLK_HZ 12792615UL       // 12.8 MHz (NCOxINC = 0x66666, 64MHz/5)
 //#define Z80_CLK_HZ 15990784UL       // 16.0 MHz (NCOxINC = 0x80000, 64MHz/2/2)
+#endif
 
 //#define Z80_USE_M1_FOR_SRAM_OE
 
@@ -50,42 +53,42 @@
 // Constant value definitions
 //
 
-#define UART_DREG 0x01          // 01h Data REG
-#define UART_CREG 0x00          // 00h Control REG
-#define DISK_REG_DATA    8      // 08h fdc-port: data (non-DMA)
-#define DISK_REG_DRIVE   10     // 0Ah fdc-port: # of drive
-#define DISK_REG_TRACK   11     // 0Bh fdc-port: # of track
-#define DISK_REG_SECTOR  12     // 0Ch fdc-port: # of sector
-#define DISK_REG_FDCOP   13     // 0Dh fdc-port: command
+#define UART_CREG        PIC_IOBASE+0      // 00h Control REG
+#define UART_DREG        PIC_IOBASE+1      // 01h Data REG
+#define DISK_REG_DATA    PIC_IOBASE+8      // 08h fdc-port: data (non-DMA)
+#define DISK_REG_DRIVE   PIC_IOBASE+10     // 0Ah fdc-port: # of drive
+#define DISK_REG_TRACK   PIC_IOBASE+11     // 0Bh fdc-port: # of track
+#define DISK_REG_SECTOR  PIC_IOBASE+12     // 0Ch fdc-port: # of sector
+#define DISK_REG_FDCOP   PIC_IOBASE+13     // 0Dh fdc-port: command
 #define DISK_OP_DMA_READ     0
 #define DISK_OP_DMA_WRITE    1
 #define DISK_OP_READ         2
 #define DISK_OP_WRITE        3
-#define DISK_REG_FDCST   14     // OEh fdc-port: status
+#define DISK_REG_FDCST   PIC_IOBASE+14     // OEh fdc-port: status
 #define DISK_ST_SUCCESS      0x00
 #define DISK_ST_ERROR        0x01
-#define DISK_REG_DMAL    15     // OFh dma-port: dma address low
-#define DISK_REG_DMAH    16     // 10h dma-port: dma address high
-#define DISK_REG_SECTORH 17     // 11h fdc-port: # of sector high
+#define DISK_REG_DMAL    PIC_IOBASE+15     // OFh dma-port: dma address low
+#define DISK_REG_DMAH    PIC_IOBASE+16     // 10h dma-port: dma address high
+#define DISK_REG_SECTORH PIC_IOBASE+17     // 11h fdc-port: # of sector high
 
-#define MMU_INIT         20     // 14h MMU initialisation
-#define MMU_BANK_SEL     21     // 15h MMU bank select
-#define MMU_SEG_SIZE     22     // 16h MMU select segment size (in pages a 256 bytes)
-#define MMU_WR_PROT      23     // 17h MMU write protect/unprotect common memory segment
+#define MMU_INIT         PIC_IOBASE+20     // 14h MMU initialisation
+#define MMU_BANK_SEL     PIC_IOBASE+21     // 15h MMU bank select
+#define MMU_SEG_SIZE     PIC_IOBASE+22     // 16h MMU select segment size (in pages a 256 bytes)
+#define MMU_WR_PROT      PIC_IOBASE+23     // 17h MMU write protect/unprotect common memory segment
 
-#define HW_CTRL          160    // A0h hardware control
+#define MON_CLEANUP      PIC_IOBASE+26     // 1Ah clean up monitor mode
+#define MON_PREPARE      PIC_IOBASE+27     // 1Bh prepare monitor mode
+#define MON_ENTER        PIC_IOBASE+28     // 1Ch enter monitor mode
+#define TGTINV_TRAP      PIC_IOBASE+29     // 1Dh return from target CPU invocation
+#define MON_PREPARE_NMI  PIC_IOBASE+30     // 1Eh prepare monitor mode for NMI
+#define MON_ENTER_NMI    PIC_IOBASE+31     // 1Fh enter monitor mode for NMI
+
+#define HW_CTRL          160               // A0h hardware control
 #define HW_CTRL_LOCKED       0xff
 #define HW_CTRL_UNLOCKED     0x00
 #define HW_CTRL_MAGIC        0xaa
 #define HW_CTRL_RESET        (1 << 6)
 #define HW_CTRL_HALT         (1 << 7)
-
-#define MON_CLEANUP      170    // AAh clean up monitor mode
-#define MON_PREPARE      171    // ABh prepare monitor mode
-#define MON_ENTER        172    // ACh enter monitor mode
-#define TGTINV_TRAP      173    // ADh return from target CPU invocation
-#define MON_PREPARE_NMI  174    // AEh prepare monitor mode for NMI
-#define MON_ENTER_NMI    175    // AFh enter monitor mode for NMI
 
 #define MMU_INVALID_BANK 0xff
 
@@ -172,7 +175,20 @@ extern void io_set_interrupt_data(uint8_t data);
 // monitor
 extern int invoke_monitor;
 extern unsigned int mon_step_execution;
-
+#if defined(NO_MONITOR)
+static inline void mon_init(void) {};
+static inline void mon_assert_interrupt(void) {};
+static inline void mon_setup(void) {};
+static inline void mon_prepare(void) {};
+static inline void mon_prepare_nmi(void) {};
+static inline void mon_enter(void) {};
+static inline void mon_enter_nmi(void) {};
+static inline void mon_start(void) {};
+static inline int mon_prompt(void) { return MON_CMD_EXIT; }
+static inline void mon_use_zeropage(int bank, unsigned int size) {};
+static inline void mon_leave(void) {};
+static inline void mon_cleanup(void) {};
+#else  // defined(NO_MONITOR)
 void mon_init(void);
 void mon_assert_interrupt(void);
 void mon_setup(void);
@@ -185,6 +201,7 @@ int mon_prompt(void);
 void mon_use_zeropage(int bank, unsigned int size);
 void mon_leave(void);
 void mon_cleanup(void);
+#endif  // defined(NO_MONITOR)
 
 // memory
 extern int mmu_bank;
@@ -208,9 +225,15 @@ extern void mmu_bank_config(int nbanks);
 extern void mmu_bank_select(int bank);
 
 // board
+extern const uint8_t *board_ipl;
+extern unsigned int board_ipl_size;
+
 extern void board_init(void);
 extern char *(*board_name_hook)(void);
 #define board_name() (*board_name_hook)()
+extern char *(*board_disk_name_hook)(void);
+#define board_disk_name() (*board_disk_name_hook)()
+#define is_board_disk_name_available() (board_disk_name_hook != NULL)
 extern void (*board_sys_init_hook)(void);
 #define board_sys_init() (*board_sys_init_hook)()
 extern void (*board_disk_init_hook)(void);
@@ -248,7 +271,7 @@ extern void (*board_clear_io_event_hook)(void);
 #define board_clear_io_event() (*board_clear_io_event_hook)()
 extern int (*board_clock_op_hook)(int clocks);
 #define board_clock_op(op) (*board_clock_op_hook)(op)
-#define is_board_clock_op_available() (board_clock_hook != NULL)
+#define is_board_clock_op_available() (board_clock_op_hook != NULL)
 #define BOARD_CLOCK_SUSPEND 0
 #define BOARD_CLOCK_RESUME -1
 #define BOARD_CLOCK_GET    -2

@@ -23,20 +23,11 @@
 ;FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 ;OTHER DEALINGS IN THE SOFTWARE.
 ;
+	.include "supermez80_asm.inc"
+MMUINIT	EQU	MMU_INIT
+BNKSEL	EQU	MMU_BANK_SEL
+;
 	ORG	0		;mem base of boot
-;
-;	I/O ports
-;
-CONDAT	EQU	1		;console data port
-DRIVE   EQU	10		;fdc-port: # of drive
-TRACK   EQU	11		;fdc-port: # of track
-SECTOR  EQU	12		;fdc-port: # of sector
-FDCOP   EQU	13		;fdc-port: command
-FDCST   EQU	14		;fdc-port: status
-DMAL    EQU	15		;dma-port: dma address low
-DMAH    EQU	16		;dma-port: dma address high
-MMUINIT	EQU	20		;MMU INIT
-BNKSEL	EQU	21		;MMU bank select
 ;
 BOOT:
 	JP	COLD

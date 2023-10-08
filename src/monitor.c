@@ -33,6 +33,10 @@
 #include <SDCard.h>
 #include <fatdisk_debug.h>
 
+int invoke_monitor = 0;
+unsigned int mon_step_execution = 0;
+
+#if !defined(NO_MONITOR)
 static const unsigned char trampoline[] = {
 // trampoline code at zero page
 #include "trampoline.inc"
@@ -90,8 +94,6 @@ struct z80_context_s {
     uint8_t saved_prog[2];
 };
 
-int invoke_monitor = 0;
-unsigned int mon_step_execution = 0;
 static struct z80_context_s z80_context;
 static uint32_t mon_cur_addr = 0;
 static unsigned int mon_cur_drive = 0;
@@ -1250,3 +1252,4 @@ void mon_cleanup(void)
         invoke_monitor = 1;
     }
 }
+#endif  // !defined(NO_MONITOR)

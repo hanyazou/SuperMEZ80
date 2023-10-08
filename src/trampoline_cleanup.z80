@@ -23,15 +23,8 @@
 ; WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 ; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 ; OTHER DEALINGS IN THE SOFTWARE.
-
 ;
-;	I/O ports
-;
-CONDAT		EQU	1	; console output port
-MON_CLEANUP	EQU	170	; clean up monitor mode
-MON_PREPARE	EQU	171	; prepare monitor mode
-MON_ENTER	EQU	172	; clean up monitor mode
-
+	.include "supermez80_asm.inc"
 ;
 ;	start of zero page
 ;
