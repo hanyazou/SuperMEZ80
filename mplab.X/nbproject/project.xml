@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://www.netbeans.org/ns/project/1">
+    <type>com.microchip.mplab.nbide.embedded.makeproject</type>
+    <configuration>
+        <data xmlns="http://www.netbeans.org/ns/make-project/1">
+            <name>mplab</name>
+            <creation-uuid>e5585570-b2ca-476a-b927-19bc169606d5</creation-uuid>
+            <make-project-type>0</make-project-type>
+            <sourceEncoding>ISO-8859-1</sourceEncoding>
+            <make-dep-projects/>
+            <sourceRootList>
+                <sourceRootElem>../drivers</sourceRootElem>
+                <sourceRootElem>../FatFs</sourceRootElem>
+                <sourceRootElem>../src</sourceRootElem>
+            </sourceRootList>
+            <confList>
+                <confElem>
+                    <name>SuperMEZ80_CPM</name>
+                    <type>2</type>
+                </confElem>
+                <confElem>
+                    <name>SuperMEZ80_SPI</name>
+                    <type>2</type>
+                </confElem>
+                <confElem>
+                    <name>EMUZ80_57Q</name>
+                    <type>2</type>
+                </confElem>
+                <confElem>
+                    <name>Z8S170_57Q</name>
+                    <type>2</type>
+                </confElem>
+            </confList>
+            <formatting>
+                <project-formatting-style>false</project-formatting-style>
+            </formatting>
+        </data>
+    </configuration>
+</project>
