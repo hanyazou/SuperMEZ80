@@ -1,7 +1,6 @@
 # macOS 'Desktop Services Store' automatically created 
 .DS_Store
 build
-build.*
 docker/dot_bashrc_mod
 docker/run_mod.sh
 docker/commands.sh

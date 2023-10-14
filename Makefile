@@ -55,7 +55,7 @@ PP3_OPTS ?= -c $(PROGPORT) -s 100 -v 2 -r 30 -t $(PIC)
 FATFS_DIR ?= $(PJ_DIR)/FatFs
 DRIVERS_DIR ?= $(PJ_DIR)/drivers
 SRC_DIR ?= $(PJ_DIR)/src
-BUILD_DIR ?= $(PJ_DIR)/$(shell echo build.$(BOARD).$(PIC) | tr A-Z a-z)
+BUILD_DIR ?= $(PJ_DIR)/$(shell echo build/$(BOARD).$(PIC) | tr A-Z a-z)
 CPM2_DIR ?= $(PJ_DIR)/cpm2
 HEXFILE ?= $(shell echo $(BOARD)-$(PIC).hex | tr A-Z a-z)
 
@@ -246,6 +246,16 @@ $(BUILD_DIR)/config_asm.inc: Makefile
 upload: $(BUILD_DIR)/$(HEXFILE) $(PP3_DIR)/pp3
 	cd $(PP3_DIR) && ./pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE)
 
+dist:: build_all
+	cd build/; \
+	for build in *.*; do \
+	    mkdir -p $(PJ_DIR)/dist/$${build}; \
+	    cp -rp $${build}/CPMDISKS* $(PJ_DIR)/dist/$${build}; \
+	    cp -p $${build}/*.h $(PJ_DIR)/dist/$${build}; \
+	    cp -p $${build}/*.inc $(PJ_DIR)/dist/$${build}; \
+	    cp -p $${build}/*.hex $(PJ_DIR)/dist/$${build}; \
+	done
+
 test::
 	cd test && PORT=$(CONSPORT) ./test.sh
 
@@ -260,15 +270,15 @@ test_time::
 test_monitor::
 	cd test && PORT=$(CONSPORT) ./monitor.sh
 
-test_build::
+build_all::
 	make BOARD=SUPERMEZ80_SPI PIC=18F47Q43
 	make BOARD=SUPERMEZ80_CPM PIC=18F47Q43
 	make BOARD=EMUZ80_57Q     PIC=18F57Q43
 	make BOARD=Z8S180_57Q     PIC=18F57Q43
-	ls -l build.*.*/*.hex
+	ls -l build/*.*/*.hex
 
 clean::
-	rm -rf $(PJ_DIR)/build.*.*
+	rm -rf $(PJ_DIR)/build/*.*
 
 $(ASM):
 	cd $(ASM_DIR) && make
