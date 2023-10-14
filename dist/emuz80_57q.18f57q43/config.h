@@ -1,3 +1,2 @@
 #define SUPERMEZ80_CPM_MMU 1
-#define Z80_CLK_HZ 6396277UL        
 #define PIC_IOBASE 0
