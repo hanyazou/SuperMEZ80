@@ -7,6 +7,7 @@
 #ifndef __SUPERMEZ80_H__
 #define __SUPERMEZ80_H__
 
+#include <config.h>
 #include <picconfig.h>
 #include <xc.h>
 #include <stdint.h>

@@ -90,16 +90,16 @@ ifeq ($(BOARD),Z8S180_57Q)
     PIC_IOBASE = 128
 endif
 
-DEFS += -DSUPERMEZ80_CPM_MMU
-#DEFS += -DCPM_MMU_EXERCISE
-#DEFS += -DNO_MEMORY_CHECK
-#DEFS += -DNO_MON_BREAKPOINT
-#DEFS += -DNO_MON_STEP
-DEFS += -DZ80_CLK_HZ=$(Z80_CLK_HZ)
-DEFS += -DPIC_IOBASE=$(PIC_IOBASE)
+CONFIG_SUPERMEZ80_CPM_MMU=1
+#CONFIG_CPM_MMU_EXERCISE=1
+#CONFIG_NO_MEMORY_CHECK=1
+#CONFIG_NO_MON_BREAKPOINT=1
+#CONFIG_NO_MON_STEP=1
+CONFIG_Z80_CLK_HZ=$(Z80_CLK_HZ)
+CONFIG_PIC_IOBASE=$(PIC_IOBASE)
 NO_MONITOR ?= 0
 ifneq ($(NO_MONITOR), 0)
-    DEFS += -DNO_MONITOR
+    CONFIG_NO_MONITOR=1
 endif
 
 INCS ?=-I$(SRC_DIR) -I$(DRIVERS_DIR) -I$(FATFS_DIR)/source -I$(BUILD_DIR)
@@ -114,6 +114,7 @@ HDRS ?= $(SRC_DIR)/supermez80.h $(SRC_DIR)/picconfig.h \
         $(BUILD_DIR)/dma_helper.inc \
         $(BUILD_DIR)/dummy.inc \
         $(BUILD_DIR)/z8s180_57q_ipl.inc \
+        $(BUILD_DIR)/config.h \
         $(DRIVERS_DIR)/pic18f47q43_spi.c \
         $(DRIVERS_DIR)/SDCard.c \
         $(DRIVERS_DIR)/mcp23s08.c \
@@ -128,7 +129,7 @@ all: $(BUILD_DIR)/$(HEXFILE) \
 
 $(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS) $(ASM_HDRS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(XC8) $(XC8_OPTS) $(DEFS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
+        $(XC8) $(XC8_OPTS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
         mv supermez80.hex $(HEXFILE)
 
 $(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(ASM) $(ASM_HDRS)
@@ -178,6 +179,34 @@ $(BUILD_DIR)/CPMDISKS.180/drivea.dsk: $(BUILD_DIR)/boot_z180.bin $(BUILD_DIR)/bi
 $(BUILD_DIR)/supermez80_asm.inc: $(SRC_DIR)/supermez80_asm.inc
 	mkdir -p $(BUILD_DIR)
 	cp -p $(SRC_DIR)/supermez80_asm.inc $(BUILD_DIR)/supermez80_asm.inc
+
+$(BUILD_DIR)/config.h:
+	mkdir -p $(BUILD_DIR)
+	rm -f $@
+	if [ "$(CONFIG_SUPERMEZ80_CPM_MMU)" != "" ]; then \
+	    echo "#define SUPERMEZ80_CPM_MMU $(CONFIG_SUPERMEZ80_CPM_MMU)" >> $@; \
+	fi
+	if [ "$(CONFIG_CPM_MMU_EXERCISE)" != "" ]; then \
+	    echo "#define CPM_MMU_EXERCISE $(CONFIG_CPM_MMU_EXERCISE)" >> $@; \
+	fi
+	if [ "$(CONFIG_NO_MEMORY_CHECK)" != "" ]; then \
+	    echo "#define NO_MEMORY_CHECK $(CONFIG_NO_MEMORY_CHECK)" >> $@; \
+	fi
+	if [ "$(CONFIG_NO_MON_BREAKPOINT)" != "" ]; then \
+	    echo "#define NO_MON_BREAKPOINT $(CONFIG_NO_MON_BREAKPOINT)" >> $@; \
+	fi
+	if [ "$(CONFIG_NO_MON_STEP)" != "" ]; then \
+	    echo "#define NO_MON_STEP $(CONFIG_NO_MON_STEP)" >> $@; \
+	fi
+	if [ "$(CONFIG_Z80_CLK_HZ)" != "" ]; then \
+	    echo "#define Z80_CLK_HZ $(CONFIG_Z80_CLK_HZ)" >> $@; \
+	fi
+	if [ "$(CONFIG_PIC_IOBASE)" != "" ]; then \
+	    echo "#define PIC_IOBASE $(CONFIG_PIC_IOBASE)" >> $@; \
+	fi
+	if [ "$(CONFIG_NO_MONITOR)" != "" ]; then \
+	    echo "#define NO_MONITOR $(CONFIG_NO_MONITOR)" >> $@; \
+	fi
 
 $(BUILD_DIR)/config_asm.inc: Makefile
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
