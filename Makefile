@@ -13,19 +13,6 @@ PIC ?= 18F47Q43
 #PIC ?= 18F47Q84
 #PIC ?= 18F57Q43
 
-#Z80_CLK_HZ ?= 0UL              #  use external clock
-#Z80_CLK_HZ ?= 499712UL         #  0.5 MHz (NCOxINC = 0x04000, 64MHz/64/2)
-#Z80_CLK_HZ ?= 999424UL         #  1.0 MHz (NCOxINC = 0x08000, 64MHz/32/2)
-#Z80_CLK_HZ ?= 1998848UL        #  2.0 MHz (NCOxINC = 0x10000, 64MHz/16/2)
-#Z80_CLK_HZ ?= 3997696UL        #  4.0 MHz (NCOxINC = 0x20000, 64MHz/8/2)
-#Z80_CLK_HZ ?= 4568778UL        #  4.6 MHz (NCOxINC = 0x24924, 64MHz/7/2)
-#Z80_CLK_HZ ?= 5330241UL        #  5.3 MHz (NCOxINC = 0x2AAAA, 64MHz/6/2)
-Z80_CLK_HZ ?= 6396277UL        #  6.4 MHz (NCOxINC = 0x33333, 64MHz/5/2)
-#Z80_CLK_HZ ?= 7995392UL        #  8.0 MHz (NCOxINC = 0x40000, 64MHz/4/2)
-#Z80_CLK_HZ ?= 10660482UL       # 10.7 MHz (NCOxINC = 0x55555, 64MHz/3/2)
-#Z80_CLK_HZ ?= 12792615UL       # 12.8 MHz (NCOxINC = 0x66666, 64MHz/5)
-#Z80_CLK_HZ ?= 15990784UL       # 16.0 MHz (NCOxINC = 0x80000, 64MHz/2/2)
-
 Z180_CLK_MULT ?= 2
 Z180_NO_DMA ?= 0
 Z180_UART ?= 0
@@ -55,7 +42,7 @@ PP3_OPTS ?= -c $(PROGPORT) -s 100 -v 2 -r 30 -t $(PIC)
 FATFS_DIR ?= $(PJ_DIR)/FatFs
 DRIVERS_DIR ?= $(PJ_DIR)/drivers
 SRC_DIR ?= $(PJ_DIR)/src
-BUILD_DIR ?= $(PJ_DIR)/$(shell echo build.$(BOARD).$(PIC) | tr A-Z a-z)
+BUILD_DIR ?= $(PJ_DIR)/$(shell echo build/$(BOARD).$(PIC) | tr A-Z a-z)
 CPM2_DIR ?= $(PJ_DIR)/cpm2
 HEXFILE ?= $(shell echo $(BOARD)-$(PIC).hex | tr A-Z a-z)
 
@@ -90,16 +77,16 @@ ifeq ($(BOARD),Z8S180_57Q)
     PIC_IOBASE = 128
 endif
 
-DEFS += -DSUPERMEZ80_CPM_MMU
-#DEFS += -DCPM_MMU_EXERCISE
-#DEFS += -DNO_MEMORY_CHECK
-#DEFS += -DNO_MON_BREAKPOINT
-#DEFS += -DNO_MON_STEP
-DEFS += -DZ80_CLK_HZ=$(Z80_CLK_HZ)
-DEFS += -DPIC_IOBASE=$(PIC_IOBASE)
+CONFIG_SUPERMEZ80_CPM_MMU=1
+#CONFIG_CPM_MMU_EXERCISE=1
+#CONFIG_NO_MEMORY_CHECK=1
+#CONFIG_NO_MON_BREAKPOINT=1
+#CONFIG_NO_MON_STEP=1
+CONFIG_Z80_CLK_HZ=$(Z80_CLK_HZ)
+CONFIG_PIC_IOBASE=$(PIC_IOBASE)
 NO_MONITOR ?= 0
 ifneq ($(NO_MONITOR), 0)
-    DEFS += -DNO_MONITOR
+    CONFIG_NO_MONITOR=1
 endif
 
 INCS ?=-I$(SRC_DIR) -I$(DRIVERS_DIR) -I$(FATFS_DIR)/source -I$(BUILD_DIR)
@@ -114,6 +101,7 @@ HDRS ?= $(SRC_DIR)/supermez80.h $(SRC_DIR)/picconfig.h \
         $(BUILD_DIR)/dma_helper.inc \
         $(BUILD_DIR)/dummy.inc \
         $(BUILD_DIR)/z8s180_57q_ipl.inc \
+        $(BUILD_DIR)/config.h \
         $(DRIVERS_DIR)/pic18f47q43_spi.c \
         $(DRIVERS_DIR)/SDCard.c \
         $(DRIVERS_DIR)/mcp23s08.c \
@@ -128,7 +116,7 @@ all: $(BUILD_DIR)/$(HEXFILE) \
 
 $(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS) $(ASM_HDRS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(XC8) $(XC8_OPTS) $(DEFS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
+        $(XC8) $(XC8_OPTS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
         mv supermez80.hex $(HEXFILE)
 
 $(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(ASM) $(ASM_HDRS)
@@ -179,6 +167,34 @@ $(BUILD_DIR)/supermez80_asm.inc: $(SRC_DIR)/supermez80_asm.inc
 	mkdir -p $(BUILD_DIR)
 	cp -p $(SRC_DIR)/supermez80_asm.inc $(BUILD_DIR)/supermez80_asm.inc
 
+$(BUILD_DIR)/config.h:
+	mkdir -p $(BUILD_DIR)
+	rm -f $@
+	if [ "$(CONFIG_SUPERMEZ80_CPM_MMU)" != "" ]; then \
+	    echo "#define SUPERMEZ80_CPM_MMU $(CONFIG_SUPERMEZ80_CPM_MMU)" >> $@; \
+	fi
+	if [ "$(CONFIG_CPM_MMU_EXERCISE)" != "" ]; then \
+	    echo "#define CPM_MMU_EXERCISE $(CONFIG_CPM_MMU_EXERCISE)" >> $@; \
+	fi
+	if [ "$(CONFIG_NO_MEMORY_CHECK)" != "" ]; then \
+	    echo "#define NO_MEMORY_CHECK $(CONFIG_NO_MEMORY_CHECK)" >> $@; \
+	fi
+	if [ "$(CONFIG_NO_MON_BREAKPOINT)" != "" ]; then \
+	    echo "#define NO_MON_BREAKPOINT $(CONFIG_NO_MON_BREAKPOINT)" >> $@; \
+	fi
+	if [ "$(CONFIG_NO_MON_STEP)" != "" ]; then \
+	    echo "#define NO_MON_STEP $(CONFIG_NO_MON_STEP)" >> $@; \
+	fi
+	if [ "$(CONFIG_Z80_CLK_HZ)" != "" ]; then \
+	    echo "#define Z80_CLK_HZ $(CONFIG_Z80_CLK_HZ)" >> $@; \
+	fi
+	if [ "$(CONFIG_PIC_IOBASE)" != "" ]; then \
+	    echo "#define PIC_IOBASE $(CONFIG_PIC_IOBASE)" >> $@; \
+	fi
+	if [ "$(CONFIG_NO_MONITOR)" != "" ]; then \
+	    echo "#define NO_MONITOR $(CONFIG_NO_MONITOR)" >> $@; \
+	fi
+
 $(BUILD_DIR)/config_asm.inc: Makefile
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
 	rm -f $@
@@ -217,6 +233,16 @@ $(BUILD_DIR)/config_asm.inc: Makefile
 upload: $(BUILD_DIR)/$(HEXFILE) $(PP3_DIR)/pp3
 	cd $(PP3_DIR) && ./pp3 $(PP3_OPTS) $(BUILD_DIR)/$(HEXFILE)
 
+dist:: build_all
+	cd build/; \
+	for build in *.*; do \
+	    mkdir -p $(PJ_DIR)/dist/$${build}; \
+	    cp -rp $${build}/CPMDISKS* $(PJ_DIR)/dist/$${build}; \
+	    cp -p $${build}/*.h $(PJ_DIR)/dist/$${build}; \
+	    cp -p $${build}/*.inc $(PJ_DIR)/dist/$${build}; \
+	    cp -p $${build}/*.hex $(PJ_DIR)/dist/$${build}; \
+	done
+
 test::
 	cd test && PORT=$(CONSPORT) ./test.sh
 
@@ -231,15 +257,15 @@ test_time::
 test_monitor::
 	cd test && PORT=$(CONSPORT) ./monitor.sh
 
-test_build::
+build_all::
 	make BOARD=SUPERMEZ80_SPI PIC=18F47Q43
 	make BOARD=SUPERMEZ80_CPM PIC=18F47Q43
 	make BOARD=EMUZ80_57Q     PIC=18F57Q43
 	make BOARD=Z8S180_57Q     PIC=18F57Q43
-	ls -l build.*.*/*.hex
+	ls -l build/*.*/*.hex
 
 clean::
-	rm -rf $(PJ_DIR)/build.*.*
+	rm -rf $(PJ_DIR)/build/*.*
 
 $(ASM):
 	cd $(ASM_DIR) && make

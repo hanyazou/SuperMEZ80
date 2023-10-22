@@ -79,16 +79,17 @@ https://twitter.com/Gazelle8087/status/1708072678702379033
 * Windowsの場合、WSL2(Windows Subsystem for Linux)であればLinuxと同じ手順でビルドできます
 * PIC18用のコンパイラ(XC8)を使います
 * 以下のように make を実行すると、
-PIC に書き込み可能なbuild.<基板名>.<PIC種別>/<基板名>-<PIC種別>.hexが作成されます
+PIC に書き込み可能なbuild/<基板名>.<PIC種別>/<基板名>-<PIC種別>.hexが作成されます
 ```
 % git clone https://github.com/hanyazou/SuperMEZ80
 % cd SuperMEZ80
 % git submodule update --init --recursive
 % make BOARD=SUPERMEZ80_CPM PIC=18F47Q43
 
-% ls build.*.*/*.hex
--rw-r--r--  1 hanyazou  staff  218386 Aug 29 17:45 build.supermez80_cpm.18f47q43/supermez80_cpm-18f47q43.hex
+% ls build/*.*/*.hex
+-rw-r--r--  1 hanyazou  staff  218386 Aug 29 17:45 build/supermez80_cpm.18f47q43/supermez80_cpm-18f47q43.hex
 ```
+* アセンブラを除く.cで書かれた部分だけであれば、ソースコードの取得、ビルド、書き込みを MPLAB X IDE で行うことができます
 
 ### Linux
 
@@ -168,6 +169,50 @@ $ ./docker/build_env.sh make realclean test_build
 コマンドを実行した端末にXC8のライセンス条件などが表示されるのでよく読んで
 Y/Nなどを入力してください。
 
+### MPLAB X IDE
+EMUZ80 などで使用する PIC 18F マイコンのMICROCHIP社が提供する統合開発環境です。  
+Winodows, Mac, Linux に対応しており、
+SuperMEZ80 のアセンブラソースコード（.z80, .asm）を除く、C言語で書かれた PIC の FW をビルドできます。  
+（アセンブラを含む FW 全体の再ビルドには MPLAB X IDE 出なく、macOS や Linux の手順をお勧めします）
+
+<img src="imgs/mplab-ide-0000.png" width="50%">
+
+以下のMICROCHIPのサイトからMPLAB X IDE と XC8 コンパイラを
+ダウンロードしてインストールしてください。
+MPLAB X IDE v6.15 と MPLAB XC8 v2.41 の組み合わせでビルドできることを確認しています。  
+https://www.microchip.com/en-us/tools-resources/develop/mplab-x-ide
+
+MPLAB X IDE は、git クライアントの plug-in を備えており、MPLAB X IDE をインストールすれば、github から SuperMEZ80 のソースコードを clone して使用できます。
+ソースコードの修正管理や、最新版への追従などを行う際には便利です。以下に、MPLAB X IDE を使って SuperMEZ80 のソースコードを clone する手順を示します。
+
+Windows の MPLAB X IDE の Terminal で git コマンドを実行する場合は、cygwin をインストールしておいて下さい
+https://www.cygwin.com/
+
+<ol>
+<li>MPLAB X IDE を起動します
+<li>File > Close All Projects を選択して、すべてのプロジェクトを閉じます
+<li>Team > Git > Clone ... を選択して、Clone Repository ダイアログを表示します<br>
+  <img src="imgs/mplab-ide-0002.png" width="24%">
+<li>Repositocy URL: に https://github.com/hanyazou/SuperMEZ80.git を指定します<br>
+Clone into: には、ソースコードを配置する適当なフォルダを指定します<br>
+  <img src="imgs/mplab-ide-0004.png" width="24%">
+<li>Remote Branches は、mez80ram-cpm などを指定します（Select Allしても大丈夫です）<br>
+  <img src="imgs/mplab-ide-0005.png" width="24%">
+<li>Destination Directory は、ソースコードを配置する適当なフォルダを指定します<br>
+Checkout Branch は、mez80ram-cpm を指定します<br>
+Scan for NetBeans Projects after Clone にチェックが入っていることを確認してください<br>
+  <img src="imgs/mplab-ide-0006.png" width="24%">
+<li>Finish を押すと、github からソースコードを clone します<br>
+途中、Do you want to automatically initialize and clone them? のようなダイアログが出るので、Yes を選択してください<br>
+  <img src="imgs/mplab-ide-0008.png" width="24%">
+<li>ソースコードの clone が終わったら、File > Open Project ... でダウンロードしたフォルダの mplab.X をオープンしてください<br>
+  <img src="imgs/mplab-ide-0011.png" width="24%">
+<li>左のペインの Projects で mplab を選んでから Window > IDE Tools > Terminal で cmd prompt を出して "git submodule update --init --recursive" を実行してください<br>
+  <img src="imgs/mplab-ide-0017.png" width="24%">
+<li>これでソースコードの準備は完了です。
+ビルドおよびPICへの書き込み方法については、MPLAB X IDEの使い方を参照してください。
+</ol>
+
 ## PICプログラムの書き込み
 以下の書き込みツールのいずれかを使用して
 ビルドしたファームウェアをEMUZ80上のPICマイコンに書き込みます。
@@ -175,6 +220,7 @@ Y/Nなどを入力してください。
 * PICkit  
 PICマイコンのMICROCHIP社純正ツールです。EMUZ80で使用するPIC 18Fに書き込むためには、PICkit 4以降の比較的新しいものが必要です。
 （PICkit 2及び3は対応していません）  
+MPLAB X IDEと連携できるので、MPLAB X IDE を使う場合には便利です。  
 https://www.microchip.com/en-us/development-tool/PG164140
 * PICkit minus  
 PICkit 2及び3を使ってPIC 18Fに書き込むことができるソフトウェアです。  
@@ -194,7 +240,7 @@ SuperMEZ80-SPI用のファームウェアでは、rom[]に小さなプログラ�
 
 SDカードのディスクイメージは、
 SDカードにCPMDISKSというフォルダを作成し、z80pack のディスクイメージか、または、
-ファームウェアをビルドしてできたbuild.*/CPMDISKS.*/drivea.dskをコピーしておきます。
+ファームウェアをビルドしてできたbuild/*/CPMDISKS.*/drivea.dskをコピーしておきます。
 SDカードにCPMDISKSで始まる名前のフォルダが複数ある場合は、起動時に以下のように出力されるので、どれを使用するのか選択します。
 ```
 Memory 000000 - 010000H 64 KB OK
@@ -214,7 +260,7 @@ Select[0]:
 
 ### ディスクイメージの修正について
 ビルド時に作成される
-build.*/CPMDISKS.*/drivea.dskは、z80packのCP/M 2.2用起動ディスクを修正したものです。
+build/*/CPMDISKS.*/drivea.dskは、z80packのCP/M 2.2用起動ディスクを修正したものです。
 これらイメージの作成手順はMakefileを参照してください。
 
 SuperMEZ80-SPI I/O expander付きなどを使用する場合は、
@@ -238,7 +284,7 @@ Z8S180 は、CPU自体に幾つかの周辺機器や拡張レジスタを内蔵�
 I/O アドレスを使用します。
 このためZ8S180-57Q基板は、z80packのディスクイメージとはメージとは異なるI/Oアドレスを使用する必要が
 あります。
-build.z8s180_57q.18f57q43/CPMDISKS.180/drivea.dsk は、シリアル入出力やSDカードへのアクセスを
+build/z8s180_57q.18f57q43/CPMDISKS.180/drivea.dsk は、シリアル入出力やSDカードへのアクセスを
 通常の 00h 付近から 80h 付近に変更したものです。
 具体的な修正内容は、cpm2 フォルダのboot\_z180.asm, bios\_z180.asmの履歴を参照してください。
 

@@ -1,8 +1,12 @@
 # macOS 'Desktop Services Store' automatically created 
 .DS_Store
 build
-build.*
 docker/dot_bashrc_mod
 docker/run_mod.sh
 docker/commands.sh
 .config
+mplab.X/build/
+mplab.X/dist/
+mplab.X/generated/
+mplab.X/nbproject/Makefile-*
+mplab.X/nbproject/private
