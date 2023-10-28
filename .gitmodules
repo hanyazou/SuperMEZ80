@@ -8,3 +8,6 @@
 [submodule "tools/zasm"]
 	path = tools/zasm
 	url = https://github.com/Megatokio/zasm.git
+[submodule "libraries/modem_xfer"]
+	path = libraries/modem_xfer
+	url = https://github.com/hanyazou/modem_xfer.git
