@@ -59,6 +59,7 @@ static uint8_t hw_ctrl_lock = HW_CTRL_LOCKED;
 static char key_input_buffer[80];
 static unsigned int key_input = 0;
 static unsigned int key_input_buffer_head = 0;
+static unsigned char key_input_raw = 0;
 static char con_output_buffer[80];
 static unsigned int con_output = 0;
 static unsigned int con_output_buffer_head = 0;
@@ -116,6 +117,12 @@ void putch_buffered(char c) {
     con_output++;
     U3TXIE = 1;                 // Enable Tx interrupt
     GIE = 1;                    // Enable interrupt
+}
+
+int set_key_input_raw(int raw) {
+    int res = (int)key_input_raw;
+    key_input_raw = (unsigned char)raw;
+    return res;
 }
 
 char getch_buffered(void) {
@@ -244,7 +251,8 @@ void __interrupt(irq(default),base(8)) Default_ISR(){
     // Read UART input if Rx interrupt flag is set
     if (U3RXIF) {
         uint8_t c = U3RXB;
-        if (c != 0x00) {        // Save input key to the buffer if the input is not a break key
+        if (key_input_raw || c != 0x00) {
+            // Save input key to the buffer if the input is not a break key
             ungetch(c);
         } else {
             invoke_monitor = 1;

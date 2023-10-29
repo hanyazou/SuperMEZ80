@@ -159,6 +159,8 @@ extern int getch(void);
 extern char getch_buffered(void);
 extern void ungetch(char c);
 extern void putch_buffered(char c);
+extern int set_key_input_raw(int raw);
+
 extern drive_t drives[];
 extern const int num_drives;
 extern void io_handle(void);
