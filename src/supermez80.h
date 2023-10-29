@@ -156,6 +156,7 @@ enum {
 extern void io_init(void);
 extern int io_stat(void);
 extern int getch(void);
+extern int getch_buffered_timeout(char *c, int timeout_ms);
 extern char getch_buffered(void);
 extern void ungetch(char c);
 extern void putch_buffered(char c);

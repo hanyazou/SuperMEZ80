@@ -125,9 +125,10 @@ int set_key_input_raw(int raw) {
     return res;
 }
 
-char getch_buffered(void) {
+int getch_buffered_timeout(char *c, int timeout_ms) {
     char res;
-    while (1) {
+    int retry = 0;
+    while (timeout_ms == 0 || retry++ < timeout_ms) {
         GIE = 0;                // Disable interrupt
         if (0 < key_input) {
             res = key_input_buffer[key_input_buffer_head];
@@ -135,10 +136,12 @@ char getch_buffered(void) {
             key_input--;
             U3RXIE = 1;         // Enable Rx interrupt
             GIE = 1;            // Enable interrupt
-            return res;
+            *c = res;
+            return 1;
         }
         if (invoke_monitor) {
             GIE = 1;            // Enable interrupt
+            *c = 0;
             return 0;           // This input is dummy to escape Z80 from  IO read instruction
                                 // and might be a garbage. Sorry.
         }
@@ -146,8 +149,14 @@ char getch_buffered(void) {
         __delay_us(1000);
     }
 
-    // not reached
-    return res;
+    // no input, timeout
+    return 0;
+}
+
+char getch_buffered(void) {
+    char c;
+    getch_buffered_timeout(&c, 0);
+    return c;
 }
 
 void ungetch(char c) {
