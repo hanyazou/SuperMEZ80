@@ -53,7 +53,10 @@ static void emuz80_common_sys_init()
     TRIS(Z80_RESET) = 0;        // Set as output
 
     // UART3 initialize
-    U3BRG = 416;        // 9600bps @ 64MHz
+    // U3BRG = 416;        // 9600bps @ 64MHz
+    U3BRG = (_XTAL_FREQ/16)/115200+1;
+    //U3BRG = (_XTAL_FREQ/16)/230400+1;
+    //U3BRG = (_XTAL_FREQ/16)/460800+1;
     U3RXEN = 1;         // Receiver enable
     U3TXEN = 1;         // Transmitter enable
 
