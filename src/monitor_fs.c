@@ -95,34 +95,58 @@ int mon_cmd_cd(int argc, char *args[])
     return MON_CMD_OK;
 }
 
+static void show_fileinfo(FILINFO *fileinfo, uint8_t in_detail)
+{
+    if (in_detail) {
+        printf("%cr%c %c%c %8ld %s\n\r",
+               (fileinfo->fattrib & AM_DIR) ? 'd' : '-',
+               (fileinfo->fattrib & AM_RDO) ? '-' : 'w',
+               (fileinfo->fattrib & AM_HID) ? 'h' : '-',
+               (fileinfo->fattrib & AM_SYS) ? 's' : '-',
+               (uint32_t)fileinfo->fsize,
+               fileinfo->fname);
+    } else {
+        printf("%s%s\n\r", fileinfo->fname, (fileinfo->fattrib & AM_DIR) ? "/" : "");
+    }
+}
+
 int mon_cmd_ls(int argc, char *args[])
 {
     FRESULT fr;
     DIR fsdir;
     FILINFO fileinfo;
     uint8_t in_detail = 0;
+    char *dir = ".";
 
-    if (args[0] != NULL && strcmp(args[0], "-l") == 0)
+    int i = 0;
+    if (args[i] != NULL && strcmp(args[i], "-l") == 0) {
+        i++;
         in_detail = 1;
+    }
+    if (args[i] != NULL && *args[i] != '\0') {
+        dir = args[i];
+    }
 
-    fr = f_opendir(&fsdir, ".");
+    if (strcmp(dir, ".") != 0) {
+        fr = f_stat(dir, &fileinfo);
+        if (fr != FR_OK) {
+            mon_fatfs_error(fr, "f_stat() failed");
+            return MON_CMD_OK;
+        }
+        if (!(fileinfo.fattrib & AM_DIR)) {
+            show_fileinfo(&fileinfo, in_detail);
+            return MON_CMD_OK;
+        }
+    }
+
+    fr = f_opendir(&fsdir, dir);
     if (fr != FR_OK) {
         mon_fatfs_error(fr, "f_opendir() failed");
         return MON_CMD_OK;
     }
 
     while ((fr = f_readdir(&fsdir, &fileinfo)) == FR_OK && fileinfo.fname[0] != 0) {
-        if (in_detail) {
-            printf("%cr%c %c%c %8ld %s\n\r",
-                   (fileinfo.fattrib & AM_DIR) ? 'd' : '-',
-                   (fileinfo.fattrib & AM_RDO) ? '-' : 'w',
-                   (fileinfo.fattrib & AM_HID) ? 'h' : '-',
-                   (fileinfo.fattrib & AM_SYS) ? 's' : '-',
-                   (uint32_t)fileinfo.fsize,
-                   fileinfo.fname);
-        } else {
-            printf("%s%s\n\r", fileinfo.fname, (fileinfo.fattrib & AM_DIR) ? "/" : "");
-        }
+        show_fileinfo(&fileinfo, in_detail);
     }
     if (fr != FR_OK) {
         mon_fatfs_error(fr, "f_readdir() failed");
