@@ -201,13 +201,24 @@ int mon_cmd_rm(int argc, char *args[])
     }
     file = args[i];
 
+    int nest;
+    int removed;
     if (recursive) {
+    redo:
+        nest = 1;
+        for (char *p = file; *p != '\0'; p++) {
+            if (*p == '/') {
+                nest++;
+            }
+        }
         fr = f_chdir(file);
         if (fr != FR_OK) {
             mon_fatfs_error(fr, "f_chdir() failed");
             return MON_CMD_OK;
         }
 
+    remove_files_in_current_directory:
+        removed = 0;
         fr = f_opendir(&fsdir, ".");
         if (fr != FR_OK) {
             mon_fatfs_error(fr, "f_opendir() failed");
@@ -223,10 +234,25 @@ int mon_cmd_rm(int argc, char *args[])
             if (fileinfo.fname[0] == 0) {
                 break;
             }
+            removed++;
             fr = f_unlink(fileinfo.fname);
             if (fr != FR_OK) {
-                mon_fatfs_error(fr, "f_unlink() failed");
-                break;
+                if (!(fileinfo.fattrib & AM_DIR)) {
+                    mon_fatfs_error(fr, "f_unlink() failed");
+                    break;
+                }
+                fr = f_closedir(&fsdir);
+                if (fr != FR_OK) {
+                    mon_fatfs_error(fr, "f_closedir() failed");
+                    break;
+                }
+                fr = f_chdir(fileinfo.fname);
+                if (fr != FR_OK) {
+                    mon_fatfs_error(fr, "f_chdir() failed");
+                    break;
+                }
+                nest++;
+                goto remove_files_in_current_directory;
             }
         }
         fr = f_closedir(&fsdir);
@@ -234,10 +260,15 @@ int mon_cmd_rm(int argc, char *args[])
             mon_fatfs_error(fr, "f_closedir() failed");
         }
 
-        fr = f_chdir("..");
-        if (fr != FR_OK) {
-            mon_fatfs_error(fr, "f_chdir() failed");
-            return MON_CMD_OK;
+        for (int i = 0; i < nest; i++) {
+            fr = f_chdir("..");
+            if (fr != FR_OK) {
+                mon_fatfs_error(fr, "f_chdir() failed");
+                return MON_CMD_OK;
+            }
+        }
+        if (removed) {
+            goto redo;
         }
     }
 
