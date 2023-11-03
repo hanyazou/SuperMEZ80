@@ -98,12 +98,17 @@ int mon_cmd_cd(int argc, char *args[])
 static void show_fileinfo(FILINFO *fileinfo, uint8_t in_detail)
 {
     if (in_detail) {
-        printf("%cr%c %c%c %8ld %s\n\r",
+        printf("%cr%c %c%c %8ld %u-%02u-%02u %02u:%02u %s\n\r",
                (fileinfo->fattrib & AM_DIR) ? 'd' : '-',
                (fileinfo->fattrib & AM_RDO) ? '-' : 'w',
                (fileinfo->fattrib & AM_HID) ? 'h' : '-',
                (fileinfo->fattrib & AM_SYS) ? 's' : '-',
                (uint32_t)fileinfo->fsize,
+               (fileinfo->fdate >> 9) + 1980,
+               (fileinfo->fdate >> 5) & 15,
+               fileinfo->fdate & 31,
+               fileinfo->ftime >> 11,
+               (fileinfo->ftime >> 5) & 63,
                fileinfo->fname);
     } else {
         printf("%s%s\n\r", fileinfo->fname, (fileinfo->fattrib & AM_DIR) ? "/" : "");
