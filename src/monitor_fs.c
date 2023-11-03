@@ -35,6 +35,7 @@ static char * const msgbuf = (char *)tmp_buf[1];
 static unsigned int msglen = 0;
 static const unsigned int msgbuf_size = TMP_BUF_SIZE;
 
+static void mon_fatfs_error(FRESULT fres, char *msg);
 static int tx_func(uint8_t c);
 static int rx_func(uint8_t *c, int timeout_ms);
 static int save_func(char *file_name, uint32_t offset, uint8_t *buf, uint16_t size);
@@ -57,6 +58,85 @@ int mon_cmd_recv(int argc, char *args[])
     printf("\n\r%s\n\r", msgbuf);
 
     return MON_CMD_OK;
+}
+
+int mon_cmd_pwd(int argc, char *args[])
+{
+    FRESULT fr;
+    char * const buf = (char *)tmp_buf[1];
+    const unsigned int bufsize = TMP_BUF_SIZE;
+
+    fr = f_getcwd(buf, bufsize);
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_getcwd() failed");
+        return MON_CMD_OK;
+    }
+
+    printf("%s\n\r", buf);
+
+    return MON_CMD_OK;
+}
+
+int mon_cmd_cd(int argc, char *args[])
+{
+    FRESULT fr;
+    char *dir = "/";
+
+    if (args[0] != NULL && *args[0] != '\0')
+        dir = args[0];
+
+    fr = f_chdir(dir);
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_chdir() failed");
+        return MON_CMD_OK;
+    }
+
+    return MON_CMD_OK;
+}
+
+int mon_cmd_ls(int argc, char *args[])
+{
+    FRESULT fr;
+    DIR fsdir;
+    FILINFO fileinfo;
+    uint8_t in_detail = 0;
+
+    if (args[0] != NULL && strcmp(args[0], "-l") == 0)
+        in_detail = 1;
+
+    fr = f_opendir(&fsdir, ".");
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_opendir() failed");
+        return MON_CMD_OK;
+    }
+
+    while ((fr = f_readdir(&fsdir, &fileinfo)) == FR_OK && fileinfo.fname[0] != 0) {
+        if (in_detail) {
+            printf("%cr%c %c%c %8ld %s\n\r",
+                   (fileinfo.fattrib & AM_DIR) ? 'd' : '-',
+                   (fileinfo.fattrib & AM_RDO) ? '-' : 'w',
+                   (fileinfo.fattrib & AM_HID) ? 'h' : '-',
+                   (fileinfo.fattrib & AM_SYS) ? 's' : '-',
+                   (uint32_t)fileinfo.fsize,
+                   fileinfo.fname);
+        } else {
+            printf("%s%s\n\r", fileinfo.fname, (fileinfo.fattrib & AM_DIR) ? "/" : "");
+        }
+    }
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_readdir() failed");
+    }
+    fr = f_closedir(&fsdir);
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_closedir() failed");
+    }
+
+    return MON_CMD_OK;
+}
+
+static void mon_fatfs_error(FRESULT fres, char *msg)
+{
+    printf("%s, %d\n\r", msg, fres);
 }
 
 static int tx_func(uint8_t c)
