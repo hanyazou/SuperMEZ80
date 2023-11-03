@@ -213,6 +213,9 @@ int mon_cmd_recv(int argc, char *args[]);
 int mon_cmd_pwd(int argc, char *args[]);
 int mon_cmd_cd(int argc, char *args[]);
 int mon_cmd_ls(int argc, char *args[]);
+int mon_cmd_mkdir(int argc, char *args[]);
+int mon_cmd_rm(int argc, char *args[]);
+int mon_cmd_mv(int argc, char *args[]);
 #endif  // defined(NO_MONITOR)
 
 // memory
