@@ -164,6 +164,109 @@ int mon_cmd_ls(int argc, char *args[])
     return MON_CMD_OK;
 }
 
+int mon_cmd_mkdir(int argc, char *args[])
+{
+    FRESULT fr;
+
+    if (args[0] == NULL || *args[0] == '\0') {
+        printf("usage: mkdir directory\n\r");
+        return MON_CMD_OK;
+    }
+
+    fr = f_mkdir(args[0]);
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_mkdir() failed");
+        return MON_CMD_OK;
+    }
+
+    return MON_CMD_OK;
+}
+
+int mon_cmd_rm(int argc, char *args[])
+{
+    FRESULT fr;
+    DIR fsdir;
+    FILINFO fileinfo;
+    uint8_t recursive = 0;
+    char *file;
+
+    int i = 0;
+    if (args[i] != NULL && strcmp(args[i], "-r") == 0) {
+        i++;
+        recursive = 1;
+    }
+    if (args[i] == NULL || args[i] == 0) {
+        printf("usage: rm [-r] file or directory\n\r");
+        return MON_CMD_OK;
+    }
+    file = args[i];
+
+    if (recursive) {
+        fr = f_chdir(file);
+        if (fr != FR_OK) {
+            mon_fatfs_error(fr, "f_chdir() failed");
+            return MON_CMD_OK;
+        }
+
+        fr = f_opendir(&fsdir, ".");
+        if (fr != FR_OK) {
+            mon_fatfs_error(fr, "f_opendir() failed");
+            return MON_CMD_OK;
+        }
+
+        while (1) {
+            fr = f_readdir(&fsdir, &fileinfo);
+            if (fr != FR_OK) {
+                mon_fatfs_error(fr, "f_readdir() failed");
+                break;
+            }
+            if (fileinfo.fname[0] == 0) {
+                break;
+            }
+            fr = f_unlink(fileinfo.fname);
+            if (fr != FR_OK) {
+                mon_fatfs_error(fr, "f_unlink() failed");
+                break;
+            }
+        }
+        fr = f_closedir(&fsdir);
+        if (fr != FR_OK) {
+            mon_fatfs_error(fr, "f_closedir() failed");
+        }
+
+        fr = f_chdir("..");
+        if (fr != FR_OK) {
+            mon_fatfs_error(fr, "f_chdir() failed");
+            return MON_CMD_OK;
+        }
+    }
+
+    fr = f_unlink(file);
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_unlink() failed");
+    }
+
+    return MON_CMD_OK;
+}
+
+int mon_cmd_mv(int argc, char *args[])
+{
+    FRESULT fr;
+
+    if (args[0] == NULL || *args[0] == '\0' || args[1] == NULL || *args[1] == '\0') {
+        printf("usage: mv old_name new_name\n\r");
+        return MON_CMD_OK;
+    }
+
+    fr = f_rename(args[0], args[1]);
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_rename() failed");
+        return MON_CMD_OK;
+    }
+
+    return MON_CMD_OK;
+}
+
 static void mon_fatfs_error(FRESULT fres, char *msg)
 {
     struct {
