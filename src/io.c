@@ -56,7 +56,7 @@ static int io_stat_ = IO_STAT_INVALID;
 static uint8_t hw_ctrl_lock = HW_CTRL_LOCKED;
 
 // console input/output buffers
-static char key_input_buffer[80];
+static char key_input_buffer[192];
 static unsigned int key_input = 0;
 static unsigned int key_input_buffer_head = 0;
 static unsigned char key_input_raw = 0;
