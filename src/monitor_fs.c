@@ -37,9 +37,6 @@ static unsigned int msglen = 0;
 static const unsigned int msgbuf_size = TMP_BUF_SIZE;
 
 static void mon_fatfs_error(FRESULT fres, char *msg);
-static int tx_func(uint8_t c);
-static int rx_func(uint8_t *c, int timeout_ms);
-static int save_func(char *file_name, uint32_t offset, uint8_t *buf, uint16_t size);
 
 int mon_cmd_recv(int argc, char *args[])
 {
@@ -47,7 +44,7 @@ int mon_cmd_recv(int argc, char *args[])
 
     msglen = 0;
     save_file_name[0] = '\0';
-    if (ymodem_receive(tmp_buf[0], tx_func, rx_func, save_func) != 0) {
+    if (ymodem_receive(tmp_buf[0]) != 0) {
         printf("\n\rymodem_receive() failed\n\r");
     }
     if (save_file_name[0]) {
@@ -333,14 +330,14 @@ static void mon_fatfs_error(FRESULT fres, char *msg)
     }
 }
 
-static int tx_func(uint8_t c)
+int modem_xfer_tx(uint8_t c)
 {
     putch_buffered(c);
 
     return 1;
 }
 
-static int rx_func(uint8_t *c, int timeout_ms)
+int modem_xfer_rx(uint8_t *c, int timeout_ms)
 {
     return getch_buffered_timeout((char*)c, timeout_ms);
 }
@@ -369,7 +366,7 @@ void modem_xfer_printf(int log_level, const char *format, ...)
     msglen += len;
 }
 
-static int save_func(char *file_name, uint32_t offset, uint8_t *buf, uint16_t size)
+int modem_xfer_save(char *file_name, uint32_t offset, uint8_t *buf, uint16_t size)
 {
     FRESULT fres;
     char tmp[MAX_FILE_NAME_LEN];
