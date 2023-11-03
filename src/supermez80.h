@@ -207,6 +207,11 @@ void mon_leave(void);
 void mon_cleanup(void);
 #endif  // defined(NO_MONITOR)
 
+// monitor
+#if !defined(NO_MONITOR)
+int mon_cmd_recv(int argc, char *args[]);
+#endif  // defined(NO_MONITOR)
+
 // memory
 extern int mmu_bank;
 extern int mmu_num_banks;
