@@ -6,7 +6,7 @@ set default_timeout 30
 set timeout $default_timeout
 set send_slow { 1 .1 }
 
-fconfigure $portid -mode "9600,n,8,1"
+fconfigure $portid -mode "115200,n,8,1"
 spawn -open $portid
 
 expect_before {
