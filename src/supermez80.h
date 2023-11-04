@@ -209,6 +209,7 @@ void mon_cleanup(void);
 
 // monitor
 #if !defined(NO_MONITOR)
+int mon_cmd_send(int argc, char *args[]);
 int mon_cmd_recv(int argc, char *args[]);
 int mon_cmd_pwd(int argc, char *args[]);
 int mon_cmd_cd(int argc, char *args[]);

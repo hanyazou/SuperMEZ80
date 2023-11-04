@@ -574,6 +574,9 @@ static const struct {
     { "set",            2, mon_cmd_set,              MON_STR_ARG(0),
       "[variable][=value]",
       "Display or change specified debug variable" },
+    { "send",           1, mon_cmd_send,             MON_STR_ARG(0),
+      "file",
+      "Send file using ymodem protocol" },
     #ifndef NO_MON_STEP
     { "step",           1, mon_cmd_step,             0,
       "[number of steps]",

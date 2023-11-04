@@ -38,6 +38,74 @@ static const unsigned int msgbuf_size = TMP_BUF_SIZE;
 
 static void mon_fatfs_error(FRESULT fres, char *msg);
 
+int mon_cmd_send(int argc, char *args[])
+{
+    int res;
+    FRESULT fr;
+    ymodem_context ctx;
+    FILINFO fileinfo;
+
+    msglen = 0;
+    if (args[0] == NULL || *args[0] == '\0') {
+        printf("usage: send file\n\r");
+        return MON_CMD_OK;
+    }
+
+    fr = f_stat(args[0], &fileinfo);
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_stat() failed");
+        return MON_CMD_OK;
+    }
+    fr = f_open(&file, args[0], FA_READ);
+    if (fr != FR_OK) {
+        mon_fatfs_error(fr, "f_open() failed");
+        return MON_CMD_OK;
+    }
+
+    printf("waiting for file transfer request via the terminal ...\n\r");
+    int raw = set_key_input_raw(1);
+    ymodem_send_init(&ctx, tmp_buf[0]);
+    char *file_name = strrchr(args[0], '/');
+    if (file_name != NULL) {
+        file_name++;
+    } else {
+        file_name = args[0];
+    }
+    res = ymodem_send_header(&ctx, file_name, (uint32_t)fileinfo.fsize);
+    if (res != MODEM_XFER_RES_OK) {
+        modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_header() failed, %d\n\r", res);
+        goto exit;
+    }
+
+    uint32_t xfer_size = 0;
+    while (xfer_size < (uint32_t)fileinfo.fsize) {
+        UINT n;
+        fr = f_read(&file, tmp_buf[0], MODEM_XFER_BUF_SIZE, &n);
+        if (fr != FR_OK ||
+            (n != MODEM_XFER_BUF_SIZE && xfer_size + n != (uint32_t)fileinfo.fsize)) {
+            modem_xfer_printf(MODEM_XFER_LOG_ERROR, "read(%s) failed at %lu/%lu\n\r",
+                              args[0], (unsigned long)xfer_size, (unsigned long)fileinfo.fsize);
+            ymodem_send_cancel(&ctx);
+            goto exit;
+        }
+        res = ymodem_send_block(&ctx);
+        if (res != MODEM_XFER_RES_OK) {
+            modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_block() failed, %d\n\r", res);
+            goto exit;
+        }
+        xfer_size += MODEM_XFER_BUF_SIZE;
+    }
+    res = ymodem_send_end(&ctx);
+    if (res != MODEM_XFER_RES_OK) {
+        modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_end() failed, %d\n\r", res);
+    }
+
+ exit:
+    set_key_input_raw(raw);
+    printf("%s", msgbuf);
+    return MON_CMD_OK;
+}
+
 int mon_cmd_recv(int argc, char *args[])
 {
     int raw = set_key_input_raw(1);
