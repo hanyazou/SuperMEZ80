@@ -30,7 +30,7 @@
 
 static const unsigned int MON_MAX_PATH_LEN = TMP_BUF_SIZE;
 #define MAX_FILE_NAME_LEN 13
-static FIL save_file;
+static FIL file;
 static char save_file_name[MAX_FILE_NAME_LEN];
 static char * const msgbuf = (char *)tmp_buf[1];
 static unsigned int msglen = 0;
@@ -48,12 +48,12 @@ int mon_cmd_recv(int argc, char *args[])
         printf("\n\rymodem_receive() failed\n\r");
     }
     if (save_file_name[0]) {
-        f_sync(&save_file);
-        f_close(&save_file);
+        f_sync(&file);
+        f_close(&file);
         save_file_name[0] = '\0';
     }
     set_key_input_raw(raw);
-    printf("\n\r%s\n\r", msgbuf);
+    printf("\n\r%s", msgbuf);
 
     return MON_CMD_OK;
 }
@@ -381,13 +381,13 @@ int modem_xfer_save(char *file_name, uint32_t offset, uint8_t *buf, uint16_t siz
         // close previous file if already opened
         if (save_file_name[0]) {
             save_file_name[0] = '\0';
-            fres = f_sync(&save_file);
-            if (f_close(&save_file) != FR_OK || fres != FR_OK) {
+            fres = f_sync(&file);
+            if (f_close(&file) != FR_OK || fres != FR_OK) {
                 return -1;
             }
         }
         // open new file
-        if (f_open(&save_file, tmp, FA_WRITE|FA_OPEN_ALWAYS) != FR_OK) {
+        if (f_open(&file, tmp, FA_WRITE|FA_OPEN_ALWAYS) != FR_OK) {
             save_file_name[0] = '\0';
             return -2;
         }
@@ -395,18 +395,18 @@ int modem_xfer_save(char *file_name, uint32_t offset, uint8_t *buf, uint16_t siz
     }
 
     // move file pointer to the offset
-    if ((fres = f_lseek(&save_file, offset)) != FR_OK) {
+    if ((fres = f_lseek(&file, offset)) != FR_OK) {
         return -3;
     }
 
     if (buf != NULL && size != 0) {
         // write to the file
-        if (f_write(&save_file, buf, size, &n) != FR_OK || n != size) {
+        if (f_write(&file, buf, size, &n) != FR_OK || n != size) {
             return -4;
         }
     } else {
         // truncate the file
-        if (f_truncate(&save_file) != FR_OK) {
+        if (f_truncate(&file) != FR_OK) {
             return -5;
         }
     }
