@@ -31,9 +31,6 @@
 #include <string.h>
 #include <utils.h>
 
-static FATFS fs;
-static DIR fsdir;
-static FILINFO fileinfo;
 static FIL files[NUM_FILES];
 static int num_files = 0;
 debug_t debug = {
@@ -127,6 +124,7 @@ void sys_init()
 
 int disk_init(void)
 {
+    static FATFS fs;
     board_disk_init();
     if (f_mount(&fs, "0://", 1) != FR_OK) {
         printf("Failed to mount SD Card.\n\r");
@@ -140,6 +138,8 @@ int menu_select(void)
 {
     int i;
     unsigned int drive;
+    DIR fsdir;
+    FILINFO fileinfo;
 
     //
     // Select disk image folder
