@@ -24,6 +24,8 @@ void mem_init()
 {
     unsigned int i;
     uint32_t addr;
+    uint8_t *tmp_buf[2];
+    const unsigned int TMP_BUF_SIZE = 256;
 
 #ifdef NO_MEMORY_CHECK
     mmu_mem_size = 0x40000;
@@ -32,6 +34,9 @@ void mem_init()
     printf("Memory XXX, %06lXH %d KB\r\n", addr, (int)(mmu_mem_size / 1024));
     return;
 #endif
+
+    tmp_buf[0] = util_memalloc(TMP_BUF_SIZE * 2);
+    tmp_buf[1] = tmp_buf[0] + TMP_BUF_SIZE;
 
 #ifdef CPM_MMU_EXERCISE
     mmu_mem_size = 0x80000;
@@ -115,6 +120,8 @@ void mem_init()
     mmu_num_banks = (int)(mmu_mem_size / 0x10000);
     printf("Memory 000000 - %06lXH %d KB OK\r\n", addr, (int)(mmu_mem_size / 1024));
 #endif  // !CPM_MMU_EXERCISE
+
+    util_memfree(tmp_buf[0]);
 }
 
 static const unsigned char dma_helper_z80[] = {

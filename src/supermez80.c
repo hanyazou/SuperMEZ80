@@ -36,7 +36,6 @@ static DIR fsdir;
 static FILINFO fileinfo;
 static FIL files[NUM_FILES];
 static int num_files = 0;
-uint8_t tmp_buf[2][TMP_BUF_SIZE];
 debug_t debug = {
     0,  // disk
     0,  // disk_read
@@ -120,8 +119,10 @@ void bus_master(int enable)
 
 void sys_init()
 {
+    static uint8_t memory_pool[512];
     board_init();
     board_sys_init();
+    util_memalloc_init(memory_pool, sizeof(memory_pool));
 }
 
 int disk_init(void)
@@ -214,9 +215,9 @@ int menu_select(void)
     //
     // Open disk images
     //
+    char *buf = util_memalloc(26);
     for (drive = 0; drive < num_drives && num_files < NUM_FILES; drive++) {
         char drive_letter = (char)('A' + drive);
-        char * const buf = (char *)tmp_buf[0];
         sprintf(buf, "%s/DRIVE%c.DSK", fileinfo.fname, drive_letter);
         if (f_open(&files[num_files], buf, FA_READ|FA_WRITE) == FR_OK) {
             printf("Image file %s/DRIVE%c.DSK is assigned to drive %c\n\r",
@@ -225,6 +226,7 @@ int menu_select(void)
             num_files++;
         }
     }
+    util_memfree(buf);
     if (drives[0].filep == NULL) {
         printf("No boot disk.\n\r");
         return -4;

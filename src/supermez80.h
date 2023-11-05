@@ -45,9 +45,8 @@
 
 #define NUM_FILES        6
 #define SECTOR_SIZE      128
-#define TMP_BUF_SIZE     256
 
-#define MEM_CHECK_UNIT   TMP_BUF_SIZE * 16 // 2 KB
+#define MEM_CHECK_UNIT   2048              // 2 KB
 #define MAX_MEM_SIZE     0x00100000        // 1 MB
 
 //
@@ -133,7 +132,6 @@ typedef struct {
 // Global variables and function prototypes
 //
 
-extern uint8_t tmp_buf[2][TMP_BUF_SIZE];
 extern debug_t debug;
 extern int turn_on_io_led;
 
