@@ -53,7 +53,7 @@ ASM_OPTS ?= --opcodes --bin --target=ram --reqcolon
 
 FATFS_SRCS ?= $(FATFS_DIR)/source/ff.c
 DISK_SRCS ?= \
-    $(DRIVERS_DIR)/diskio.c $(DRIVERS_DIR)/utils.c
+    $(DRIVERS_DIR)/diskio.c $(DRIVERS_DIR)/utils.c $(DRIVERS_DIR)/util_memalloc.c
 MODEM_XFER_SRC ?= \
      $(MODEM_XFER_DIR)/modem_xfer.c \
      $(MODEM_XFER_DIR)/ymodem_send.c \
