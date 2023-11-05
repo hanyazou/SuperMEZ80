@@ -215,10 +215,14 @@ int menu_select(void)
     //
     // Open disk images
     //
-    char *buf = util_memalloc(26);
+    if (f_chdir(fileinfo.fname) != FR_OK) {
+        printf("Can't access %s.\n\r", fileinfo.fname);
+        return -4;
+    }
+    char *buf = util_memalloc(13);
     for (drive = 0; drive < num_drives && num_files < NUM_FILES; drive++) {
         char drive_letter = (char)('A' + drive);
-        sprintf(buf, "%s/DRIVE%c.DSK", fileinfo.fname, drive_letter);
+        sprintf(buf, "DRIVE%c.DSK", drive_letter);
         if (f_open(&files[num_files], buf, FA_READ|FA_WRITE) == FR_OK) {
             printf("Image file %s/DRIVE%c.DSK is assigned to drive %c\n\r",
                    fileinfo.fname, drive_letter, drive_letter);
@@ -229,7 +233,7 @@ int menu_select(void)
     util_memfree(buf);
     if (drives[0].filep == NULL) {
         printf("No boot disk.\n\r");
-        return -4;
+        return -5;
     }
 
     return 0;
