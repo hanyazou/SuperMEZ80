@@ -391,6 +391,8 @@ void mon_enter_nmi()
 
 void mon_start()
 {
+    const unsigned int bufsize = 64;
+    uint8_t *buf = util_memalloc(bufsize);
     #ifdef CPM_MON_DEBUG
     printf("Start monitor\n\r");
     #endif
@@ -401,8 +403,8 @@ void mon_start()
         mon_step_execution--;
 
         mon_show_registers();
-        dma_read_from_sram(mon_cur_addr, tmp_buf[0], 64);
-        disas_ops(disas_z80, mon_cur_addr, tmp_buf[0], 64, 1, NULL);
+        dma_read_from_sram(mon_cur_addr, buf, bufsize);
+        disas_ops(disas_z80, mon_cur_addr, buf, bufsize, 1, NULL);
     }
 
     if (!z80_context.w.nmi && mon_bp_installed && mon_cur_addr == mon_bp_addr + 1) {
@@ -412,6 +414,7 @@ void mon_start()
         mon_bp_installed = 0;
         mon_cur_addr = mon_bp_addr;
     }
+    util_memfree(buf);
 }
 
 void edit_line(char *line, unsigned int maxlen, unsigned int start, unsigned int pos)
@@ -842,6 +845,8 @@ int mon_cmd_dump(int argc, char *args[])
 {
     uint32_t addr = mon_cur_addr;
     unsigned int len = 64;
+    const unsigned int bufsize = 256;
+    uint8_t *buf = util_memalloc(bufsize);
 
     if (args[0] != NULL && *args[0] != '\0')
         addr = mon_strtoval(args[0]);
@@ -857,13 +862,14 @@ int mon_cmd_dump(int argc, char *args[])
     }
 
     while (0 < len) {
-        unsigned int n = UTIL_MIN(len, sizeof(tmp_buf[0]));
-        dma_read_from_sram(addr, tmp_buf[0], n);
-        util_addrdump("", addr, tmp_buf[0], n);
+        unsigned int n = UTIL_MIN(len, bufsize);
+        dma_read_from_sram(addr, buf, n);
+        util_addrdump("", addr, buf, n);
         len -= n;
         addr += n;
     }
     mon_cur_addr = addr;
+    util_memfree(buf);
     return MON_CMD_OK;
 }
 
@@ -871,6 +877,8 @@ int mon_cmd_disassemble(int argc, char *args[])
 {
     uint32_t addr = mon_cur_addr;
     unsigned int len = 32;
+    const unsigned int bufsize = 256;
+    uint8_t *buf = util_memalloc(bufsize);
 
     if (args[0] != NULL && *args[0] != '\0')
         addr = mon_strtoval(args[0]);
@@ -879,10 +887,10 @@ int mon_cmd_disassemble(int argc, char *args[])
 
     unsigned int leftovers = 0;
     while (leftovers < len) {
-        unsigned int n = UTIL_MIN(len, sizeof(tmp_buf[0])) - leftovers;
-        dma_read_from_sram(addr, &tmp_buf[0][leftovers], n);
+        unsigned int n = UTIL_MIN(len, bufsize) - leftovers;
+        dma_read_from_sram(addr, &buf[leftovers], n);
         n += leftovers;
-        unsigned int done = disas_ops(disas_z80, addr, tmp_buf[0], n, n, NULL);
+        unsigned int done = disas_ops(disas_z80, addr, buf, n, n, NULL);
         leftovers = n - done;
         len -= done;
         addr += done;
@@ -890,13 +898,15 @@ int mon_cmd_disassemble(int argc, char *args[])
         printf("addr=%lx, done=%d, len=%d, n=%d, leftover=%d\n\r", addr, done, len, n, leftovers);
         #endif
         for (unsigned int i = 0; i < leftovers; i++)
-            tmp_buf[0][i] = tmp_buf[0][sizeof(tmp_buf[0]) - leftovers + i];
+            buf[i] = buf[bufsize - leftovers + i];
     }
     mon_cur_addr = addr;
 
     #ifdef CPM_MON_DEBUG
     printf("mon_cur_addr=%lx\n\r", mon_cur_addr);
     #endif
+    util_memfree(buf);
+
     return MON_CMD_OK;
 }
 
@@ -942,20 +952,23 @@ int mon_cmd_diskread(int argc, char *args[])
         return MON_CMD_ERROR;
     }
 
+    uint8_t *buf = util_memalloc(SECTOR_SIZE);
     for (i = 0; i < len; i++) {
         if (cpm_trsect_from_lba(drive, &track, &sector, lba) ||
-            cpm_disk_read(drive, lba, tmp_buf[0], 1) != 1) {
+            cpm_disk_read(drive, lba, buf, 1) != 1) {
             printf("DISK:  read D/T/S=%d/%3d/%3d x%3d=%5ld: ERROR\n\r",
                    drive, track, sector, drives[drive].sectors, lba);
+            util_memfree(buf);
             return MON_CMD_ERROR;
         }
         printf("DISK:  read D/T/S=%d/%3d/%3d x%3d=%5ld: OK\n\r",
                drive, track, sector, drives[drive].sectors, lba);
-        util_hexdump("", tmp_buf[0], SECTOR_SIZE);
+        util_hexdump("", buf, SECTOR_SIZE);
         lba++;
         mon_cur_lba = lba;
     }
 
+    util_memfree(buf);
     return MON_CMD_OK;
 }
 
@@ -972,16 +985,20 @@ int mon_cmd_sdread(int argc, char *args[])
         count = (unsigned int)mon_strtoval(args[1]);
     }
 
+    uint8_t *buf = util_memalloc(512);
+
     for (i = 0; i < count; i++) {
-        if (SDCard_read512(lba, 0, tmp_buf[0], 512) != SDCARD_SUCCESS) {
+        if (SDCard_read512(lba, 0, buf, 512) != SDCARD_SUCCESS) {
             printf("SD Card:  read512: sector=%ld: ERROR\n\r", lba);
+            util_memfree(buf);
             return MON_CMD_ERROR;
         }
         printf("SD Card:  read512: sector=%ld: OK\n\r", lba);
-        util_hexdump("", tmp_buf[0], 512);
+        util_hexdump("", buf, 512);
         lba++;
     }
 
+    util_memfree(buf);
     return MON_CMD_OK;
 }
 
@@ -999,21 +1016,25 @@ int mon_cmd_status(int argc, char *args[])
 {
     uint16_t sp = z80_context.w.sp;
     uint16_t pc = z80_context.w.pc;
+    const unsigned int bufsize = 64;
+    uint8_t *buf = util_memalloc(bufsize);
 
     mon_show_registers();
 
     printf("\n\r");
     printf("stack:\n\r");
-    dma_read_from_sram(phys_addr(sp & ~0xfU), tmp_buf[0], 64);
-    util_addrdump("", phys_addr(sp & ~0xfU), tmp_buf[0], 64);
+    dma_read_from_sram(phys_addr(sp & ~0xfU), buf, bufsize);
+    util_addrdump("", phys_addr(sp & ~0xfU), buf, bufsize);
 
     printf("\n\r");
     printf("program:\n\r");
-    dma_read_from_sram(phys_addr(pc & ~0xfU), tmp_buf[0], 64);
-    util_addrdump("", phys_addr(pc & ~0xfU), tmp_buf[0], 64);
+    dma_read_from_sram(phys_addr(pc & ~0xfU), buf, bufsize);
+    util_addrdump("", phys_addr(pc & ~0xfU), buf, bufsize);
 
     printf("\n\r");
-    disas_ops(disas_z80, phys_addr(pc), &tmp_buf[0][pc & 0xf], 16, 16, NULL);
+    disas_ops(disas_z80, phys_addr(pc), &buf[pc & 0xf], 16, 16, NULL);
+    util_memfree(buf);
+
     return MON_CMD_OK;
 }
 
