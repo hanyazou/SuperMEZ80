@@ -28,13 +28,14 @@
 #include <stdarg.h>
 #include <utils.h>
 
-static const unsigned int MON_MAX_PATH_LEN = TMP_BUF_SIZE;
 #define MAX_FILE_NAME_LEN 13
 static FIL file;
 static char save_file_name[MAX_FILE_NAME_LEN];
-static char * const msgbuf = (char *)tmp_buf[1];
+static char *msgbuf = NULL;
 static unsigned int msglen = 0;
-static const unsigned int msgbuf_size = TMP_BUF_SIZE;
+static const unsigned int msgbuf_size = 256;
+static char *msgtmpbuf = NULL;
+static const unsigned int msgtmpbuf_size = 128;
 
 static void mon_fatfs_error(FRESULT fres, char *msg);
 
@@ -44,6 +45,7 @@ int mon_cmd_send(int argc, char *args[])
     FRESULT fr;
     ymodem_context ctx;
     FILINFO fileinfo;
+    uint8_t *ymodem_buf;
 
     msglen = 0;
     if (args[0] == NULL || *args[0] == '\0') {
@@ -62,9 +64,13 @@ int mon_cmd_send(int argc, char *args[])
         return MON_CMD_OK;
     }
 
+    msgbuf = util_memalloc(256);
+    msgtmpbuf = util_memalloc(msgtmpbuf_size);
+    ymodem_buf = util_memalloc(MODEM_XFER_BUF_SIZE);
+
     printf("waiting for file transfer request via the terminal ...\n\r");
     int raw = set_key_input_raw(1);
-    ymodem_send_init(&ctx, tmp_buf[0]);
+    ymodem_send_init(&ctx, ymodem_buf);
     char *file_name = strrchr(args[0], '/');
     if (file_name != NULL) {
         file_name++;
@@ -80,7 +86,7 @@ int mon_cmd_send(int argc, char *args[])
     uint32_t xfer_size = 0;
     while (xfer_size < (uint32_t)fileinfo.fsize) {
         UINT n;
-        fr = f_read(&file, tmp_buf[0], MODEM_XFER_BUF_SIZE, &n);
+        fr = f_read(&file, ymodem_buf, MODEM_XFER_BUF_SIZE, &n);
         if (fr != FR_OK ||
             (n != MODEM_XFER_BUF_SIZE && xfer_size + n != (uint32_t)fileinfo.fsize)) {
             modem_xfer_printf(MODEM_XFER_LOG_ERROR, "read(%s) failed at %lu/%lu\n\r",
@@ -103,16 +109,24 @@ int mon_cmd_send(int argc, char *args[])
  exit:
     set_key_input_raw(raw);
     printf("%s", msgbuf);
+    util_memfree(ymodem_buf);
+    util_memfree(msgtmpbuf);
+    util_memfree(msgbuf);
     return MON_CMD_OK;
 }
 
 int mon_cmd_recv(int argc, char *args[])
 {
     int raw = set_key_input_raw(1);
+    uint8_t *ymodem_buf;
+
+    msgbuf = util_memalloc(256);
+    msgtmpbuf = util_memalloc(msgtmpbuf_size);
+    ymodem_buf = util_memalloc(MODEM_XFER_BUF_SIZE);
 
     msglen = 0;
     save_file_name[0] = '\0';
-    if (ymodem_receive(tmp_buf[0]) != 0) {
+    if (ymodem_receive(ymodem_buf) != 0) {
         printf("\n\rymodem_receive() failed\n\r");
     }
     if (save_file_name[0]) {
@@ -123,22 +137,27 @@ int mon_cmd_recv(int argc, char *args[])
     set_key_input_raw(raw);
     printf("\n\r%s", msgbuf);
 
+    util_memfree(ymodem_buf);
+    util_memfree(msgtmpbuf);
+    util_memfree(msgbuf);
+
     return MON_CMD_OK;
 }
 
 int mon_cmd_pwd(int argc, char *args[])
 {
     FRESULT fr;
-    char * const buf = (char *)tmp_buf[1];
-    const unsigned int bufsize = TMP_BUF_SIZE;
+    const unsigned char bufsize = 128;
+    char *buf = util_memalloc(bufsize);
 
     fr = f_getcwd(buf, bufsize);
     if (fr != FR_OK) {
         mon_fatfs_error(fr, "f_getcwd() failed");
-        return MON_CMD_OK;
+    } else {
+        printf("%s\n\r", buf);
     }
 
-    printf("%s\n\r", buf);
+    util_memfree(buf);
 
     return MON_CMD_OK;
 }
@@ -412,8 +431,9 @@ int modem_xfer_rx(uint8_t *c, int timeout_ms)
 
 void modem_xfer_printf(int log_level, const char *format, ...)
 {
-    char *buf = (char *)&tmp_buf[0][MODEM_XFER_BUF_SIZE];
-    const unsigned int bufsize = TMP_BUF_SIZE - MODEM_XFER_BUF_SIZE;
+    const unsigned int bufsize = msgtmpbuf_size;
+    char *buf = msgtmpbuf;
+
     va_list ap;
     va_start (ap, format);
     vsnprintf(buf, bufsize, format, ap);
