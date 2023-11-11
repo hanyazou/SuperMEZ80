@@ -128,6 +128,15 @@ typedef struct {
     unsigned int len;
 } mem_region_t;
 
+struct timer_s {
+    uint32_t tick_expire;
+    void (*callback)(struct timer_s *timer);
+    struct timer_s *next;
+    void *data;
+};
+typedef struct timer_s timer_t;
+typedef void (*timer_callback_t)(struct timer_s *timer);
+
 //
 // Global variables and function prototypes
 //
@@ -237,6 +246,12 @@ extern void __read_from_sram(uint32_t src, const void *buf, unsigned int len);
 extern void __read_sram_regions(const mem_region_t *regions, unsigned int n, int bank);
 extern void mmu_bank_config(int nbanks);
 extern void mmu_bank_select(int bank);
+
+// timer
+extern void timer_run(void);
+extern void timer_set_absolute(timer_t *timer, timer_callback_t callback, uint32_t tick);
+extern void timer_set_relative(timer_t *timer, timer_callback_t callback, unsigned int timer_ms);
+extern int timer_cancel(timer_t *timer);
 
 // board
 extern const uint8_t *board_ipl;
