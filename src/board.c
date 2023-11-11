@@ -44,6 +44,7 @@ __bit (*board_io_event_hook)(void) = NULL;
 void (*board_wait_io_event_hook)(void) = NULL;
 void (*board_clear_io_event_hook)(void) = NULL;
 int (*board_clock_op_hook)(int clocks) = NULL;
+void (*board_tick_hook)(uint32_t *time) = NULL;
 
 uint8_t (*board_addr_l_pins_hook)(void) = NULL;
 void (*board_set_addr_l_pins_hook)(uint8_t) = NULL;
