@@ -109,6 +109,17 @@ static void emuz80_common_sys_init()
     NCO1EN = 0;                 // NCO disable
     #endif
     #endif
+
+    // TMR0
+    // BOARD_TICK_HZ (= 100) periodic interrupts per second
+    T0CON1 = 0x56;              // select Fsoc/4, pre scale 1:64 and disable TMR0 sync
+    TMR0H = 250;                // load TMR0H
+                                // value = (Delay * clk) / Prescalar
+                                // = (1ms * 64Mhz / 4) / 64
+                                // = 250
+    T0CON0 = 0x89;              // enable TMR0 8 bit timer and post scale 1:10 (1ms to 10ms)
+    PIR3bits.TMR0IF = 0;        // clear TMR0 interrupt flag
+    PIE3bits.TMR0IE = 1;        // enable TMR0 interrupt
 }
 
 static void emuz80_common_start_z80(void)
@@ -301,6 +312,23 @@ static int emuz80_common_clock_op_hook(int clocks)
     return 0;
 }
 
+static volatile uint32_t tick_count = 0;
+static volatile uint8_t tick = 0;
+static void __interrupt(irq(TMR0),high_priority) tmr0_isr(void)
+{
+    TMR0IF=0;
+    tick_count++;
+    tick = 1;
+    return;
+}
+
+static void emuz80_common_tick(uint32_t *time)
+{
+    GIE = 0;                    // disable interrupt
+    *time = tick_count;
+    GIE = 1;                    // enable interrupt
+}
+
 static uint8_t emuz80_common_addr_l_pins(void) { return PORT(Z80_ADDR_L); }
 static void emuz80_common_set_addr_l_pins(uint8_t v) { LAT(Z80_ADDR_L) = v; }
 static uint8_t emuz80_common_data_pins(void) { return PORT(Z80_DATA); }
@@ -350,6 +378,7 @@ static void emuz80_common_init()
     #if Z80_CLK_HZ != 0 && defined(Z80_CLK)
     board_clock_op_hook         = emuz80_common_clock_op_hook;
     #endif
+    board_tick_hook             = emuz80_common_tick;
 
     board_addr_l_pins_hook      = emuz80_common_addr_l_pins;
     board_set_addr_l_pins_hook  = emuz80_common_set_addr_l_pins;
