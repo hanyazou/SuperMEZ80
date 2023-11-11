@@ -145,6 +145,8 @@ extern debug_t debug;
 extern int turn_on_io_led;
 
 void bus_master(int enable);
+FIL *get_file(void);
+void put_file(FIL *file);
 
 // io
 enum {
