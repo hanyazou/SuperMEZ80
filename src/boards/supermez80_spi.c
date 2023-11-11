@@ -405,7 +405,8 @@ static __bit supermez80_spi_io_event(void)
 
 static void supermez80_spi_wait_io_event(void)
 {
-    while (!CLC3IF && !invoke_monitor);
+    while (!CLC3IF && !invoke_monitor && !tick);
+    tick = 0;
 }
 
 static void supermez80_spi_clear_io_event(void)
