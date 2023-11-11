@@ -106,6 +106,7 @@ void main(void)
         // Wait for IO access
         board_wait_io_event();
         io_handle();
+        timer_run();
     }
 }
 

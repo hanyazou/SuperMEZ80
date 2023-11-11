@@ -142,7 +142,7 @@ int getch_buffered_timeout(char *c, int timeout_ms) {
         if (invoke_monitor) {
             GIE = 1;            // Enable interrupt
             *c = 0;
-            return 0;           // This input is dummy to escape Z80 from  IO read instruction
+            return 1;           // This input is dummy to escape Z80 from  IO read instruction
                                 // and might be a garbage. Sorry.
         }
         GIE = 1;                // Enable interrupt
@@ -364,7 +364,9 @@ void io_handle() {
         break;
     case UART_DREG:
         con_flush_buffer();
-        c = getch_buffered();
+        while (getch_buffered_timeout((char *)&c, 10) == 0) {
+            timer_run();
+        }
         set_data_pins(c);         // Out the character
         break;
     case DISK_REG_DATA:
