@@ -475,7 +475,8 @@ static __bit supermez80_cpm_io_event(void)
 
 static void supermez80_cpm_wait_io_event(void)
 {
-    while (!CLC1IF && !invoke_monitor);
+    while (!CLC1IF && !invoke_monitor && !tick);
+    tick = 0;
 }
 
 static void supermez80_cpm_clear_io_event(void)
