@@ -30,9 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <utils.h>
+#include <assert.h>
 
-static FIL files[NUM_FILES];
-static int num_files = 0;
 debug_t debug = {
     0,  // disk
     0,  // disk_read
@@ -113,6 +112,32 @@ void main(void)
 void bus_master(int enable)
 {
     board_bus_master(enable);
+}
+
+static FIL files[NUM_FILES];
+static uint16_t file_available = (1 << NUM_FILES) - 1;
+FIL *get_file(void)
+{
+    for (int i = 0; i < NUM_FILES; i++) {
+        if (file_available & (1L << i)) {
+            file_available &= ~(1L << i);
+            // printf("%s: allocate %d, available=%04x\n\r", __func__, i, file_available);
+            return &files[i];
+        }
+    }
+
+    return NULL;
+}
+
+void put_file(FIL *file)
+{
+    for (int i = 0; i < NUM_FILES; i++) {
+        if (file == &files[i]) {
+            assert(!(file_available & (1L << i)));
+            file_available |= (1L << i);
+            return ;
+        }
+    }
 }
 
 void sys_init()
@@ -217,14 +242,21 @@ int menu_select(void)
     // Open disk images
     //
     char *buf = util_memalloc(26);
-    for (drive = 0; drive < num_drives && num_files < NUM_FILES; drive++) {
+    for (drive = 0; drive < num_drives; drive++) {
         char drive_letter = (char)('A' + drive);
         sprintf(buf, "%s/DRIVE%c.DSK", fileinfo.fname, drive_letter);
-        if (f_open(&files[num_files], buf, FA_READ|FA_WRITE) == FR_OK) {
+        if (f_stat(buf, NULL) != FR_OK) {
+            continue;
+        }
+        FIL *filep = get_file();
+        if (filep == NULL) {
+            printf("Too many files\n\r");
+            break;
+        }
+        if (f_open(filep, buf, FA_READ|FA_WRITE) == FR_OK) {
             printf("Image file %s/DRIVE%c.DSK is assigned to drive %c\n\r",
                    fileinfo.fname, drive_letter, drive_letter);
-            drives[drive].filep = &files[num_files];
-            num_files++;
+            drives[drive].filep = filep;
         }
     }
     util_memfree(buf);
