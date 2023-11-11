@@ -25,6 +25,7 @@
 #define __UTILS_H__
 
 #include <stdint.h>
+#include <ff.h>
 
 #define UTIL_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define UTIL_MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -38,5 +39,7 @@ int util_stricmp(const char *a, const char *b);
 void util_memalloc_init(void *buf, unsigned int size);
 void *util_memalloc(unsigned int size);
 void util_memfree(void *ptr);
+
+void util_fatfs_error(FRESULT fres, char *msg);
 
 #endif  // __UTILS_H__

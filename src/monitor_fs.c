@@ -37,7 +37,7 @@ static const unsigned int msgbuf_size = 256;
 static char *msgtmpbuf = NULL;
 static const unsigned int msgtmpbuf_size = 128;
 
-static void mon_fatfs_error(FRESULT fres, char *msg);
+#define mon_fatfs_error(fr, msg) util_fatfs_error(fr, msg)
 
 int mon_cmd_send(int argc, char *args[])
 {
@@ -380,41 +380,6 @@ int mon_cmd_mv(int argc, char *args[])
     }
 
     return MON_CMD_OK;
-}
-
-static void mon_fatfs_error(FRESULT fres, char *msg)
-{
-    struct {
-        FRESULT fres;
-        char *errmsg;
-    } errmsgs[] = {
-        { FR_OK,                    "OK" },
-        { FR_DISK_ERR,              "DISK_ERR" },
-        { FR_INT_ERR,               "INT_ERR" },
-        { FR_NOT_READY,             "NOT_READY" },
-        { FR_NO_FILE,               "NO_FILE" },
-        { FR_NO_PATH,               "NO_PATH" },
-        { FR_INVALID_NAME,          "INVALID_NAME" },
-        { FR_DENIED,                "DENIED" },
-        { FR_EXIST,                 "EXIST" },
-        { FR_INVALID_OBJECT,        "INVALID_OBJECT" },
-        { FR_WRITE_PROTECTED,       "WRITE_PROTECTED" },
-        { FR_TIMEOUT,               "TIMEOUT" },
-        { FR_TOO_MANY_OPEN_FILES,   "TOO_MANY_OPEN_FILES" },
-        { FR_INVALID_PARAMETER,     "INVALID_PARAMETER" },
-    };
-
-    int i;
-    for (i = 0; i < UTIL_ARRAYSIZEOF(errmsgs); i++) {
-        if (errmsgs[i].fres == fres)
-            break;
-    }
-
-    if (i < UTIL_ARRAYSIZEOF(errmsgs)) {
-        printf("%s, %s\n\r", msg, errmsgs[i].errmsg);
-    } else {
-        printf("%s, %d\n\r", msg, fres);
-    }
 }
 
 int modem_xfer_tx(uint8_t c)

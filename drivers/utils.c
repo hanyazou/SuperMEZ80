@@ -88,3 +88,38 @@ int util_stricmp(const char *a, const char *b)
    } while (ua == ub && ua != '\0');
    return ua - ub;
 }
+
+void util_fatfs_error(FRESULT fres, char *msg)
+{
+    struct {
+        FRESULT fres;
+        char *errmsg;
+    } errmsgs[] = {
+        { FR_OK,                    "OK" },
+        { FR_DISK_ERR,              "DISK_ERR" },
+        { FR_INT_ERR,               "INT_ERR" },
+        { FR_NOT_READY,             "NOT_READY" },
+        { FR_NO_FILE,               "NO_FILE" },
+        { FR_NO_PATH,               "NO_PATH" },
+        { FR_INVALID_NAME,          "INVALID_NAME" },
+        { FR_DENIED,                "DENIED" },
+        { FR_EXIST,                 "EXIST" },
+        { FR_INVALID_OBJECT,        "INVALID_OBJECT" },
+        { FR_WRITE_PROTECTED,       "WRITE_PROTECTED" },
+        { FR_TIMEOUT,               "TIMEOUT" },
+        { FR_TOO_MANY_OPEN_FILES,   "TOO_MANY_OPEN_FILES" },
+        { FR_INVALID_PARAMETER,     "INVALID_PARAMETER" },
+    };
+
+    int i;
+    for (i = 0; i < UTIL_ARRAYSIZEOF(errmsgs); i++) {
+        if (errmsgs[i].fres == fres)
+            break;
+    }
+
+    if (i < UTIL_ARRAYSIZEOF(errmsgs)) {
+        printf("%s, %s\n\r", msg, errmsgs[i].errmsg);
+    } else {
+        printf("%s, %d\n\r", msg, fres);
+    }
+}
