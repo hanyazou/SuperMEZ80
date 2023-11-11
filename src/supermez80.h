@@ -292,6 +292,9 @@ extern int (*board_clock_op_hook)(int clocks);
 #define BOARD_CLOCK_HIGH   -3
 #define BOARD_CLOCK_LOW    -4
 #define BOARD_CLOCK_INVERT -5
+extern void (*board_tick_hook)(uint32_t *time);
+#define board_tick(time) (*board_tick_hook)(time)
+#define BOARD_TICK_HZ 100
 
 // Address read and write
 extern uint8_t (*board_addr_l_pins_hook)(void);
