@@ -94,6 +94,9 @@ int mon_cmd_send(int argc, char *args[])
             ymodem_send_cancel(&ctx);
             goto exit;
         }
+        if (n < MODEM_XFER_BUF_SIZE) {
+            memset(&ymodem_buf[n], 0x00, MODEM_XFER_BUF_SIZE - n);
+        }
         res = ymodem_send_block(&ctx);
         if (res != MODEM_XFER_RES_OK) {
             modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_block() failed, %d\n\r", res);

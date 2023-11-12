@@ -130,6 +130,7 @@ static void auxin_timer_callback(timer_t *timer) {
 
 void auxin(uint8_t *c) {
     FRESULT fr;
+    UINT bw;
 
     if (auxin_filep == NULL) {
         auxin_filep = get_file();
@@ -173,7 +174,7 @@ void auxin(uint8_t *c) {
         return;
     }
 
-    UINT bw;
+ read_one_more:
     fr = f_read(auxin_filep, c, 1, &bw);
     if (fr != FR_OK || bw != 1) {
         if (fr != FR_OK && !auxin_error) {
@@ -188,6 +189,9 @@ void auxin(uint8_t *c) {
         }
         *c = 0x1a;  // return EOF at end of file or some error
         return;
+    }
+    if (*c == 0x00) {
+        goto read_one_more;
     }
     if (*c == '\n') {
         // convert LF (\n 0Ah) to CRLF (\r 0Dh, \n 0Ah)
