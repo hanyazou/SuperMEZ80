@@ -20,6 +20,7 @@
 #define ENABLE_DISK_DEBUG
 //#define CPM_MEM_DEBUG
 //#define CPM_IO_DEBUG
+//#define CPM_IO_AUX_DEBUG
 //#define CPM_MMU_DEBUG
 //#define CPM_MEMCPY_DEBUG
 //#define CPM_MMU_EXERCISE
@@ -55,6 +56,10 @@
 
 #define UART_CREG        PIC_IOBASE+0      // 00h Control REG
 #define UART_DREG        PIC_IOBASE+1      // 01h Data REG
+#define IO_PRNSTA        PIC_IOBASE+2      // 02h printer status
+#define IO_PRNDAT        PIC_IOBASE+3      // 03h printer data
+#define IO_AUXSTA        PIC_IOBASE+4      // 04h auxiliary status
+#define IO_AUXDAT        PIC_IOBASE+5      // 05h auxiliary data
 #define DISK_REG_DATA    PIC_IOBASE+8      // 08h fdc-port: data (non-DMA)
 #define DISK_REG_DRIVE   PIC_IOBASE+10     // 0Ah fdc-port: # of drive
 #define DISK_REG_TRACK   PIC_IOBASE+11     // 0Bh fdc-port: # of track
@@ -188,6 +193,10 @@ extern int io_invoke_target_cpu(const mem_region_t *inparams, unsigned int ninpa
                                 const mem_region_t *outparams, unsigned int noutparams, int bank);
 extern void io_invoke_target_cpu_teardown(int *saved_status);
 extern void io_set_interrupt_data(uint8_t data);
+
+// io aux
+extern void auxout(uint8_t c);
+extern void auxin(uint8_t *c);
 
 // monitor
 extern int invoke_monitor;
