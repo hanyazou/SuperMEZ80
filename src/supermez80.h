@@ -241,6 +241,15 @@ int mon_cmd_rm(int argc, char *args[]);
 int mon_cmd_mv(int argc, char *args[]);
 #endif  // defined(NO_MONITOR)
 
+// modem
+extern uint8_t *modem_buf;
+extern int modem_send_open(char *file_name, uint32_t size);
+extern int modem_recv_open(void);
+extern int modem_send(void);
+extern int modem_recv_to_save(void);
+extern void modem_cancel(void);
+extern void modem_close(void);
+
 // memory
 extern int mmu_bank;
 extern int mmu_num_banks;
