@@ -246,7 +246,10 @@ int menu_select(void)
         char drive_letter = (char)('A' + drive);
         sprintf(buf, "%s/DRIVE%c.DSK", fileinfo.fname, drive_letter);
         if (f_stat(buf, NULL) != FR_OK) {
-            continue;
+            sprintf(buf, "CPMDISKS.CMN/DRIVE%c.DSK", drive_letter);
+            if (f_stat(buf, NULL) != FR_OK) {
+                continue;
+            }
         }
         FIL *filep = get_file();
         if (filep == NULL) {
@@ -254,8 +257,7 @@ int menu_select(void)
             break;
         }
         if (f_open(filep, buf, FA_READ|FA_WRITE) == FR_OK) {
-            printf("Image file %s/DRIVE%c.DSK is assigned to drive %c\n\r",
-                   fileinfo.fname, drive_letter, drive_letter);
+            printf("Image file %s is assigned to drive %c\n\r", buf, drive_letter);
             drives[drive].filep = filep;
         }
     }
