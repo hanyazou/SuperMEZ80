@@ -374,6 +374,10 @@ void io_handle() {
         set_data_pins(c);         // Out the character
         key_input_io_read_count++;
         break;
+    case IO_AUXDAT:
+        auxin(&c);
+        set_data_pins(c);
+        break;
     case DISK_REG_DATA:
         if (disk_datap && (disk_datap - disk_buf) < SECTOR_SIZE) {
             set_data_pins(*disk_datap++);
@@ -422,6 +426,9 @@ void io_handle() {
     case UART_DREG:
         putch_buffered(io_data);
         io_output_chars++;
+        break;
+    case IO_AUXDAT:
+        auxout(io_data);
         break;
     case DISK_REG_DATA:
         if (disk_datap && (disk_datap - disk_buf) < SECTOR_SIZE) {
