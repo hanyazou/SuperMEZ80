@@ -252,6 +252,7 @@ extern void timer_run(void);
 extern void timer_set_absolute(timer_t *timer, timer_callback_t callback, uint32_t tick);
 extern void timer_set_relative(timer_t *timer, timer_callback_t callback, unsigned int timer_ms);
 extern int timer_cancel(timer_t *timer);
+extern int timer_expire(timer_t *timer);
 
 // board
 extern const uint8_t *board_ipl;
