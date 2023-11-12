@@ -28,26 +28,14 @@
 #include <stdarg.h>
 #include <utils.h>
 
-#define MAX_FILE_NAME_LEN 13
-static FIL file;
-static char save_file_name[MAX_FILE_NAME_LEN];
-static char *msgbuf = NULL;
-static unsigned int msglen = 0;
-static const unsigned int msgbuf_size = 256;
-static char *msgtmpbuf = NULL;
-static const unsigned int msgtmpbuf_size = 128;
-
 #define mon_fatfs_error(fr, msg) util_fatfs_error(fr, msg)
 
 int mon_cmd_send(int argc, char *args[])
 {
-    int res;
     FRESULT fr;
-    ymodem_context ctx;
     FILINFO fileinfo;
-    uint8_t *ymodem_buf;
+    FIL *filep;
 
-    msglen = 0;
     if (args[0] == NULL || *args[0] == '\0') {
         printf("usage: send file\n\r");
         return MON_CMD_OK;
@@ -58,91 +46,68 @@ int mon_cmd_send(int argc, char *args[])
         mon_fatfs_error(fr, "f_stat() failed");
         return MON_CMD_OK;
     }
-    fr = f_open(&file, args[0], FA_READ);
+
+    filep = get_file();
+    if (filep == NULL) {
+        printf("too many files\n\r");
+        return MON_CMD_OK;
+    }
+    fr = f_open(filep, args[0], FA_READ);
     if (fr != FR_OK) {
         mon_fatfs_error(fr, "f_open() failed");
+        put_file(filep);
         return MON_CMD_OK;
     }
 
-    msgbuf = util_memalloc(256);
-    msgtmpbuf = util_memalloc(msgtmpbuf_size);
-    ymodem_buf = util_memalloc(MODEM_XFER_BUF_SIZE);
-
-    printf("waiting for file transfer request via the terminal ...\n\r");
-    int raw = set_key_input_raw(1);
-    ymodem_send_init(&ctx, ymodem_buf);
     char *file_name = strrchr(args[0], '/');
     if (file_name != NULL) {
         file_name++;
     } else {
         file_name = args[0];
     }
-    res = ymodem_send_header(&ctx, file_name, (uint32_t)fileinfo.fsize);
-    if (res != MODEM_XFER_RES_OK) {
-        modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_header() failed, %d\n\r", res);
-        goto exit;
+    printf("waiting for file transfer request via the terminal ...\n\r");
+    if (modem_send_open(file_name, (uint32_t)fileinfo.fsize) != 0) {
+        printf("modem_send_open() failed\n\r");
+        put_file(filep);
+        return MON_CMD_OK;
     }
 
     uint32_t xfer_size = 0;
     while (xfer_size < (uint32_t)fileinfo.fsize) {
         UINT n;
-        fr = f_read(&file, ymodem_buf, MODEM_XFER_BUF_SIZE, &n);
+        fr = f_read(filep, modem_buf, MODEM_XFER_BUF_SIZE, &n);
         if (fr != FR_OK ||
             (n != MODEM_XFER_BUF_SIZE && xfer_size + n != (uint32_t)fileinfo.fsize)) {
             modem_xfer_printf(MODEM_XFER_LOG_ERROR, "read(%s) failed at %lu/%lu\n\r",
                               args[0], (unsigned long)xfer_size, (unsigned long)fileinfo.fsize);
-            ymodem_send_cancel(&ctx);
-            goto exit;
+            modem_cancel();
+            break;
         }
         if (n < MODEM_XFER_BUF_SIZE) {
-            memset(&ymodem_buf[n], 0x00, MODEM_XFER_BUF_SIZE - n);
+            memset(&modem_buf[n], 0x00, MODEM_XFER_BUF_SIZE - n);
         }
-        res = ymodem_send_block(&ctx);
-        if (res != MODEM_XFER_RES_OK) {
-            modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_block() failed, %d\n\r", res);
-            goto exit;
+        if (modem_send() != 0) {
+            break;
         }
         xfer_size += MODEM_XFER_BUF_SIZE;
     }
-    res = ymodem_send_end(&ctx);
-    if (res != MODEM_XFER_RES_OK) {
-        modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_end() failed, %d\n\r", res);
-    }
 
- exit:
-    set_key_input_raw(raw);
-    printf("%s", msgbuf);
-    util_memfree(ymodem_buf);
-    util_memfree(msgtmpbuf);
-    util_memfree(msgbuf);
+    modem_close();
+    put_file(filep);
+
     return MON_CMD_OK;
 }
 
 int mon_cmd_recv(int argc, char *args[])
 {
-    int raw = set_key_input_raw(1);
-    uint8_t *ymodem_buf;
-
-    msgbuf = util_memalloc(256);
-    msgtmpbuf = util_memalloc(msgtmpbuf_size);
-    ymodem_buf = util_memalloc(MODEM_XFER_BUF_SIZE);
-
-    msglen = 0;
-    save_file_name[0] = '\0';
-    if (ymodem_receive(ymodem_buf) != 0) {
-        printf("\n\rymodem_receive() failed\n\r");
+    if (modem_recv_open() != 0) {
+        printf("modem_recv_open() failed\n\r");
+        return MON_CMD_OK;
     }
-    if (save_file_name[0]) {
-        f_sync(&file);
-        f_close(&file);
-        save_file_name[0] = '\0';
+    if (modem_recv_to_save() != 0) {
+        printf("\n\rmodem_recv_to_save() failed\n\r");
     }
-    set_key_input_raw(raw);
-    printf("\n\r%s", msgbuf);
-
-    util_memfree(ymodem_buf);
-    util_memfree(msgtmpbuf);
-    util_memfree(msgbuf);
+    modem_close();
 
     return MON_CMD_OK;
 }
@@ -383,89 +348,4 @@ int mon_cmd_mv(int argc, char *args[])
     }
 
     return MON_CMD_OK;
-}
-
-int modem_xfer_tx(uint8_t c)
-{
-    putch_buffered(c);
-
-    return 1;
-}
-
-int modem_xfer_rx(uint8_t *c, int timeout_ms)
-{
-    return getch_buffered_timeout((char*)c, timeout_ms);
-}
-
-void modem_xfer_printf(int log_level, const char *format, ...)
-{
-    const unsigned int bufsize = msgtmpbuf_size;
-    char *buf = msgtmpbuf;
-
-    va_list ap;
-    va_start (ap, format);
-    vsnprintf(buf, bufsize, format, ap);
-    va_end (ap);
-    buf[bufsize - 2] = '\n';
-    unsigned int len = strlen(buf);
-    buf[len] = '\r';
-    len++;
-    buf[len] = '\0';
-    if (msgbuf_size <= msglen + len) {
-        unsigned int ofs = (msglen + len + 1) - msgbuf_size;
-        for (unsigned int i = 0; i < msgbuf_size - ofs; i++) {
-            msgbuf[i] = msgbuf[ofs + i];
-        }
-        msglen -= ofs;
-    }
-    memcpy(&msgbuf[msglen], buf, len + 1);
-    msglen += len;
-}
-
-int modem_xfer_save(char *file_name, uint32_t offset, uint8_t *buf, uint16_t size)
-{
-    FRESULT fres;
-    char tmp[MAX_FILE_NAME_LEN];
-    unsigned int n;
-
-    memcpy(tmp, file_name, sizeof(tmp));
-    tmp[sizeof(tmp) - 1] = '\0';
-    if (memcmp(save_file_name, tmp, MAX_FILE_NAME_LEN) != 0) {
-        //
-        // new file
-        //
-        // close previous file if already opened
-        if (save_file_name[0]) {
-            save_file_name[0] = '\0';
-            fres = f_sync(&file);
-            if (f_close(&file) != FR_OK || fres != FR_OK) {
-                return -1;
-            }
-        }
-        // open new file
-        if (f_open(&file, tmp, FA_WRITE|FA_OPEN_ALWAYS) != FR_OK) {
-            save_file_name[0] = '\0';
-            return -2;
-        }
-        strncpy(save_file_name, tmp, MAX_FILE_NAME_LEN);
-    }
-
-    // move file pointer to the offset
-    if ((fres = f_lseek(&file, offset)) != FR_OK) {
-        return -3;
-    }
-
-    if (buf != NULL && size != 0) {
-        // write to the file
-        if (f_write(&file, buf, size, &n) != FR_OK || n != size) {
-            return -4;
-        }
-    } else {
-        // truncate the file
-        if (f_truncate(&file) != FR_OK) {
-            return -5;
-        }
-    }
-
-    return 0;
 }

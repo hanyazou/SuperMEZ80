@@ -61,6 +61,7 @@ MODEM_XFER_SRC ?= \
 SRCS ?= $(SRC_DIR)/supermez80.c $(SRC_DIR)/disas.c $(SRC_DIR)/disas_z80.c $(SRC_DIR)/memory.c \
     $(SRC_DIR)/monitor.c \
     $(SRC_DIR)/monitor_fs.c \
+    $(SRC_DIR)/modem.c \
     $(SRC_DIR)/timer.c \
     $(SRC_DIR)/io.c \
     $(SRC_DIR)/io_aux.c \
