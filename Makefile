@@ -62,7 +62,9 @@ SRCS ?= $(SRC_DIR)/supermez80.c $(SRC_DIR)/disas.c $(SRC_DIR)/disas_z80.c $(SRC_
     $(SRC_DIR)/monitor.c \
     $(SRC_DIR)/monitor_fs.c \
     $(SRC_DIR)/timer.c \
-    $(SRC_DIR)/io.c $(SRC_DIR)/board.c
+    $(SRC_DIR)/io.c \
+    $(SRC_DIR)/io_aux.c \
+    $(SRC_DIR)/board.c
 
 #
 # board dependent stuff
