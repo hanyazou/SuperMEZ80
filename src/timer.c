@@ -32,9 +32,7 @@ void timer_run(void)
     board_tick(&tick);
 
     while (timer_root != NULL && timer_root->tick_expire <= tick) {
-        timer_t *tp = timer_root;
-        timer_cancel(tp);
-        tp->callback(tp);
+        timer_expire(timer_root);
     }
 }
 
@@ -76,4 +74,13 @@ int timer_cancel(timer_t *timer)
         tpp = &((*tpp)->next);
     }
     return 0;
+}
+
+int timer_expire(timer_t *timer)
+{
+    int result = timer_cancel(timer);
+    if (result) {
+        timer->callback(timer);
+    }
+    return result;
 }
