@@ -195,8 +195,8 @@ extern void io_invoke_target_cpu_teardown(int *saved_status);
 extern void io_set_interrupt_data(uint8_t data);
 
 // io aux
-extern void auxout(uint8_t c);
-extern void auxin(uint8_t *c);
+extern void aux_file_write(uint8_t c);
+extern void aux_file_read(uint8_t *c);
 
 // monitor
 extern int invoke_monitor;
