@@ -29,6 +29,8 @@
 #include <utils.h>
 
 uint8_t *modem_buf = NULL;
+uint8_t modem_buf_ofs = 0;
+uint8_t modem_buf_len = 0;
 
 static uint8_t modem_in_use = 0;
 static uint8_t modem_on_line = 0;
@@ -53,8 +55,11 @@ static char *msgtmpbuf = NULL;
 static int __modem_open(void)
 {
     if (modem_in_use) {
+        printf("%s: medem is busy\n\r", __func__);
         return -1;
     }
+
+    modem_in_use = 1;
 
     #if defined(DEBUG)
     static uint8_t tmp[1200];
@@ -66,6 +71,7 @@ static int __modem_open(void)
     modem_buf = util_memalloc(MODEM_XFER_BUF_SIZE);
     if (msgbuf == NULL || msgtmpbuf == NULL || modem_buf == NULL) {
         modem_close();
+        printf("%s: memory allocation failed\n\r", __func__);
         return -1;
     }
 
@@ -90,6 +96,7 @@ int modem_send_open(char *file_name, uint32_t size)
     if (res != MODEM_XFER_RES_OK) {
         modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_header() failed, %d\n\r", res);
         modem_close();
+        printf("%s(%d): failed\n\r", __func__, __LINE__);
         return -1;
     }
     modem_on_line = 1;
@@ -100,6 +107,7 @@ int modem_send_open(char *file_name, uint32_t size)
 int modem_recv_open(void)
 {
     int res;
+    unsigned int n;
 
     res = __modem_open();
     if (res != 0) {
@@ -114,7 +122,15 @@ int modem_recv_open(void)
     }
 
     modem_receiving = 1;
+    ymodem_receive_init(&ctx, modem_buf);
+    if (ymodem_receive_block(&ctx, &n) != MODEM_XFER_RES_OK) {
+        modem_close();
+        printf("ymodem_receive_block() failed\n\r");
+        return -1;
+    }
     modem_on_line = 1;
+    modem_buf_ofs = 0;
+    modem_buf_len = (uint8_t)n;
 
     return 0;
 }
@@ -133,12 +149,87 @@ int modem_send(void)
     return 0;
 }
 
+int modem_write(uint8_t *buf, unsigned int len)
+{
+    unsigned int n;
+    int res;
+
+    if (!modem_on_line) {
+        return -1;
+    }
+
+    res = 0;
+    while (0 < len) {
+        n = UTIL_MIN(MODEM_XFER_BUF_SIZE - modem_buf_ofs, len);
+        memcpy(&modem_buf[modem_buf_ofs], buf, n);
+        modem_buf_ofs += n;
+        if (modem_buf_ofs == MODEM_XFER_BUF_SIZE) {
+            if (modem_send() != 0) {
+                if (0 < res) {
+                    return res;
+                } else {
+                    return -1;
+                }
+            }
+            modem_buf_ofs = 0;
+        }
+        len -= n;
+        res += n;
+    }
+
+    return res;
+}
+
 int modem_recv_to_save(void)
 {
     int res;
+    unsigned int n;
 
-    res = ymodem_receive(modem_buf);
+    while ((res = ymodem_receive_block(&ctx, &n)) == MODEM_XFER_RES_OK) {
+        if (ctx.file_name[0] == '\0') {
+            return MODEM_XFER_RES_OK;
+        }
+        res = modem_xfer_save(ctx.file_name, ctx.file_offset, ctx.buf, n);
+        if (res != MODEM_XFER_RES_OK) {
+            ymodem_send_cancel(&ctx);
+            return res;
+        }
+    }
     modem_on_line = 0;
+
+    return res;
+}
+
+int modem_read(uint8_t *buf, unsigned int len)
+{
+    unsigned int n;
+    int res;
+
+    if (!modem_on_line) {
+        return -1;
+    }
+
+    res = 0;
+    while (0 < len) {
+        n = UTIL_MIN(modem_buf_len - modem_buf_ofs, len);
+        memcpy(buf, &modem_buf[modem_buf_ofs], n);
+        modem_buf_ofs += n;
+        len -= n;
+        res += n;
+        if (modem_buf_ofs == modem_buf_len) {
+            if (ymodem_receive_block(&ctx, &n) != MODEM_XFER_RES_OK) {
+                modem_close();
+                printf("ymodem_receive_block() failed\n\r");
+                if (0 < res) {
+                    return res;
+                } else {
+                    return -1;
+                }
+            }
+            modem_buf_ofs = 0;
+            modem_buf_len = (uint8_t)n;
+        }
+    }
 
     return res;
 }
@@ -154,6 +245,15 @@ void modem_cancel(void)
 void modem_close(void)
 {
     int res;
+
+    // flush
+    if (0 < modem_buf_ofs) {
+        if (!modem_receiving && modem_on_line && modem_buf != NULL) {
+            memset(&modem_buf[modem_buf_ofs], 0x00, MODEM_XFER_BUF_SIZE - modem_buf_ofs);
+            modem_send();
+        }
+        modem_buf_ofs = 0;
+    }
 
     // hungup
     if (modem_on_line) {
@@ -178,9 +278,11 @@ void modem_close(void)
     if (modem_receiving) {
         printf("\n\r");
     }
-    printf("%s", msgbuf);
-    msglen = 0;
-    msgbuf[0] = '\0';
+    if (msgbuf != NULL && msglen != 0) {
+        printf("%s\n\r", msgbuf);
+        msglen = 0;
+        msgbuf[0] = '\0';
+    }
 
     // close file
     if (filep) {
@@ -197,6 +299,7 @@ void modem_close(void)
     if (modem_buf) {
         util_memfree(modem_buf);
         modem_buf = NULL;
+        modem_buf_ofs = 0;
     }
     if (msgtmpbuf) {
         util_memfree(msgtmpbuf);
