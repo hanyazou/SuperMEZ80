@@ -28,62 +28,61 @@
 #include <ff.h>
 #include <utils.h>
 
-static FIL *auxout_filep = NULL;
-static uint8_t auxout_error = 0;
-static timer_t auxout_timer;
-static FIL *auxin_filep = NULL;
-static uint8_t auxin_error = 0;
-static timer_t auxin_timer;
-static FSIZE_t auxin_offset = 0;
-static uint8_t auxin_line_feed = 0;
+static FIL *aux_filep = NULL;
+static uint8_t aux_error = 0;
+static timer_t aux_timer;
+static FSIZE_t aux_in_offset = 0;
+static uint8_t aux_in_line_feed = 0;
+static char *aux_file_name = NULL;
 
-static void auxout_timer_callback(timer_t *timer) {
+static void aux_timer_callback(timer_t *timer) {
     FRESULT fr;
 
     #ifdef CPM_IO_AUX_DEBUG
-    printf("%s: close AUXOUT.TXT\n\r", __func__);
+    printf("%s: close %s\n\r", __func__, aux_file_name);
     #endif
-    fr = f_close(auxout_filep);
-    put_file(auxout_filep);
-    auxout_filep = NULL;
+    fr = f_close(aux_filep);
+    put_file(aux_filep);
+    aux_filep = NULL;
     if (fr != FR_OK) {
-        if (!auxout_error) {
-            auxout_error = 1;
-            util_fatfs_error(fr, "f_close(/AUXOUT.TXT) failed");
+        if (!aux_error) {
+            aux_error = 1;
+            util_fatfs_error(fr, "f_close() failed");
         }
         return;
     }
-    auxout_error = 0;
+    aux_error = 0;
 }
 
 void auxout(uint8_t c) {
     FRESULT fr;
 
-    if (auxout_filep == NULL) {
-        auxout_filep = get_file();
-        if (auxout_filep == NULL) {
-            if (!auxout_error) {
-                auxout_error = 1;
+    if (aux_filep == NULL) {
+        aux_filep = get_file();
+        if (aux_filep == NULL) {
+            if (!aux_error) {
+                aux_error = 1;
                 printf("auxout: can not allocate file\n\r");
             }
             return;
         }
-        auxout_error = 0;
+        aux_error = 0;
+        aux_file_name = "/AUXOUT.TXT";
         #ifdef CPM_IO_AUX_DEBUG
-        printf("%s: open AUXOUT.TXT\n\r", __func__);
+        printf("%s: open %s\n\r", __func__, aux_file_name);
         #endif
-        fr = f_open(auxout_filep, "/AUXOUT.TXT", FA_WRITE|FA_OPEN_APPEND);
+        fr = f_open(aux_filep, aux_file_name, FA_WRITE|FA_OPEN_APPEND);
         if (fr != FR_OK) {
-            if (!auxout_error) {
-                auxout_error = 1;
+            if (!aux_error) {
+                aux_error = 1;
                 util_fatfs_error(fr, "f_open(/AUXOUT.TXT) failed");
             }
             return;
         }
-        auxout_error = 0;
+        aux_error = 0;
     }
 
-    timer_set_relative(&auxout_timer, auxout_timer_callback, 1000);
+    timer_set_relative(&aux_timer, aux_timer_callback, 1000);
 
     if (c == 0x00 || c == '\r') {
         // ignore 00h and 0Dh (Carriage Return)
@@ -92,100 +91,82 @@ void auxout(uint8_t c) {
 
     if (c == 0x1a) {
         // 1Ah (EOF)
-        timer_expire(&auxout_timer);  // close the file immediately
+        timer_expire(&aux_timer);  // close the file immediately
         return;
     }
 
     UINT bw;
-    fr = f_write(auxout_filep, &c, 1, &bw);
+    fr = f_write(aux_filep, &c, 1, &bw);
     if (fr != FR_OK || bw != 1) {
         // write error
-        if (!auxout_error) {
-            auxout_error = 1;
+        if (!aux_error) {
+            aux_error = 1;
             util_fatfs_error(fr, "f_write(/AUXOUT.TXT) failed");
         }
         return;
     }
-    auxout_error = 0;
-}
-
-static void auxin_timer_callback(timer_t *timer) {
-    FRESULT fr;
-
-    #ifdef CPM_IO_AUX_DEBUG
-    printf("%s: close AUXIN.TXT\n\r", __func__);
-    #endif
-    fr = f_close(auxin_filep);
-    put_file(auxin_filep);
-    auxin_filep = NULL;
-    if (fr != FR_OK) {
-        if (!auxin_error) {
-            auxin_error = 1;
-            util_fatfs_error(fr, "f_close(/AUXIN.TXT) failed");
-        }
-        return;
-    }
-    auxin_error = 0;
+    aux_error = 0;
 }
 
 void auxin(uint8_t *c) {
     FRESULT fr;
     UINT bw;
 
-    if (auxin_filep == NULL) {
-        auxin_filep = get_file();
-        if (auxin_filep == NULL) {
-            if (!auxin_error) {
-                auxin_error = 1;
+    if (aux_filep == NULL) {
+        aux_filep = get_file();
+        if (aux_filep == NULL) {
+            if (!aux_error) {
+                aux_error = 1;
                 printf("auxout: can not allocate file\n\r");
             }
             return;
         }
-        auxin_error = 0;
+        aux_error = 0;
+        aux_file_name = "/AUXIN.TXT";
         #ifdef CPM_IO_AUX_DEBUG
-        printf("%s: open AUXIN.TXT\n\r", __func__);
+        printf("%s: open %s\n\r", __func__, aux_file_name);
         #endif
-        fr = f_open(auxin_filep, "/AUXIN.TXT", FA_READ|FA_OPEN_ALWAYS);
+        fr = f_open(aux_filep, aux_file_name, FA_READ|FA_OPEN_ALWAYS);
         if (fr != FR_OK) {
-            if (!auxin_error) {
-                auxin_error = 1;
+            if (!aux_error) {
+                aux_error = 1;
                 util_fatfs_error(fr, "f_open(/AUXIN.TXT) failed");
             }
             return;
         }
-        auxin_error = 0;
-        fr = f_lseek(auxin_filep, auxin_offset);
+        aux_error = 0;
+        fr = f_lseek(aux_filep, aux_in_offset);
         if (fr != FR_OK) {
-            if (!auxin_error) {
-                auxin_error = 1;
+            if (!aux_error) {
+                aux_error = 1;
                 util_fatfs_error(fr, "f_lseek(/AUXIN.TXT) failed");
             }
-            auxin_offset = 0;
-            f_rewind(auxin_filep);
+            aux_in_offset = 0;
+            f_rewind(aux_filep);
         }
     }
 
-    timer_set_relative(&auxin_timer, auxin_timer_callback, 1000);
+    timer_set_relative(&aux_timer, aux_timer_callback, 1000);
 
-    if (auxin_line_feed) {
+    if (aux_in_line_feed) {
         // insert LF (\n 0Ah)
-        auxin_line_feed = 0;
+        aux_in_line_feed = 0;
         *c = '\n';
         return;
     }
 
  read_one_more:
-    fr = f_read(auxin_filep, c, 1, &bw);
+    fr = f_read(aux_filep, c, 1, &bw);
     if (fr != FR_OK || bw != 1) {
-        if (fr != FR_OK && !auxin_error) {
+        if (fr != FR_OK && !aux_error) {
             // error
-            auxin_error = 1;
+            aux_error = 1;
             util_fatfs_error(fr, "f_read(/AUXIN.TXT) failed");
         }
         if (bw == 0) {
             // reaching end of file
-            timer_expire(&auxin_timer);  // close the file immediately
-            auxin_offset = 0;  // rewind file position
+            timer_expire(&aux_timer);  // close the file immediately
+            aux_in_offset = 0;  // rewind file position
         }
         *c = 0x1a;  // return EOF at end of file or some error
         return;
@@ -196,8 +177,8 @@ void auxin(uint8_t *c) {
     if (*c == '\n') {
         // convert LF (\n 0Ah) to CRLF (\r 0Dh, \n 0Ah)
         *c = '\r';
-        auxin_line_feed = 1;
+        aux_in_line_feed = 1;
     }
-    auxin_offset++;
-    auxin_error = 0;
+    aux_in_offset++;
+    aux_error = 0;
 }
