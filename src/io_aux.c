@@ -27,177 +27,248 @@
 
 #include <ff.h>
 #include <utils.h>
+#include <modem_xfer.h>
 
-static FIL *auxout_filep = NULL;
-static uint8_t auxout_error = 0;
-static timer_t auxout_timer;
-static FIL *auxin_filep = NULL;
-static uint8_t auxin_error = 0;
-static timer_t auxin_timer;
-static FSIZE_t auxin_offset = 0;
-static uint8_t auxin_line_feed = 0;
+enum {
+    AUX_CLOSED,
+    AUX_FILE_WRITING,
+    AUX_FILE_READING,
+    AUX_MODEM_SENDING,
+    AUX_MODEM_RECEIVING,
+};
 
-static void auxout_timer_callback(timer_t *timer) {
+static uint8_t aux_status = AUX_CLOSED;
+static FIL *aux_filep = NULL;
+static uint8_t aux_error = 0;
+static timer_t aux_timer;
+static FSIZE_t aux_in_offset = 0;
+static uint8_t aux_in_line_feed = 0;
+static char *aux_file_name = NULL;
+
+#define ERROR(a) if (!aux_error) { aux_error = 1; a; }
+
+static void aux_modem_timer_callback(timer_t *timer) {
+    #ifdef CPM_IO_AUX_DEBUG
+    printf("%s: close\n\r", __func__);
+    #endif
+    if (aux_status == AUX_CLOSED) {
+        return;
+    }
+    modem_close();
+    aux_status = AUX_CLOSED;
+}
+
+static void aux_file_timer_callback(timer_t *timer) {
     FRESULT fr;
 
     #ifdef CPM_IO_AUX_DEBUG
-    printf("%s: close AUXOUT.TXT\n\r", __func__);
+    printf("%s: close %s\n\r", __func__, aux_file_name);
     #endif
-    fr = f_close(auxout_filep);
-    put_file(auxout_filep);
-    auxout_filep = NULL;
-    if (fr != FR_OK) {
-        if (!auxout_error) {
-            auxout_error = 1;
-            util_fatfs_error(fr, "f_close(/AUXOUT.TXT) failed");
-        }
+    if (aux_status == AUX_CLOSED) {
         return;
     }
-    auxout_error = 0;
+
+    fr = f_close(aux_filep);
+    put_file(aux_filep);
+    aux_filep = NULL;
+    aux_status = AUX_CLOSED;
+    if (fr != FR_OK) {
+        ERROR(util_fatfs_error(fr, "f_close() failed"));
+        return;
+    }
+    aux_error = 0;
 }
 
-void auxout(uint8_t c) {
-    FRESULT fr;
-
-    if (auxout_filep == NULL) {
-        auxout_filep = get_file();
-        if (auxout_filep == NULL) {
-            if (!auxout_error) {
-                auxout_error = 1;
-                printf("auxout: can not allocate file\n\r");
-            }
-            return;
-        }
-        auxout_error = 0;
-        #ifdef CPM_IO_AUX_DEBUG
-        printf("%s: open AUXOUT.TXT\n\r", __func__);
-        #endif
-        fr = f_open(auxout_filep, "/AUXOUT.TXT", FA_WRITE|FA_OPEN_APPEND);
-        if (fr != FR_OK) {
-            if (!auxout_error) {
-                auxout_error = 1;
-                util_fatfs_error(fr, "f_open(/AUXOUT.TXT) failed");
-            }
-            return;
-        }
-        auxout_error = 0;
-    }
-
-    timer_set_relative(&auxout_timer, auxout_timer_callback, 1000);
-
-    if (c == 0x00 || c == '\r') {
+static int aux_out_conv(uint8_t *c) {
+    if (*c == 0x00 || *c == '\r') {
         // ignore 00h and 0Dh (Carriage Return)
-        return;
+        return 1;
     }
 
-    if (c == 0x1a) {
+    if (*c == 0x1a) {
         // 1Ah (EOF)
-        timer_expire(&auxout_timer);  // close the file immediately
-        return;
+        timer_expire(&aux_timer);  // close the file immediately
+        return 1;
     }
 
-    UINT bw;
-    fr = f_write(auxout_filep, &c, 1, &bw);
-    if (fr != FR_OK || bw != 1) {
-        // write error
-        if (!auxout_error) {
-            auxout_error = 1;
-            util_fatfs_error(fr, "f_write(/AUXOUT.TXT) failed");
-        }
-        return;
-    }
-    auxout_error = 0;
+    return 0;
 }
 
-static void auxin_timer_callback(timer_t *timer) {
-    FRESULT fr;
-
-    #ifdef CPM_IO_AUX_DEBUG
-    printf("%s: close AUXIN.TXT\n\r", __func__);
-    #endif
-    fr = f_close(auxin_filep);
-    put_file(auxin_filep);
-    auxin_filep = NULL;
-    if (fr != FR_OK) {
-        if (!auxin_error) {
-            auxin_error = 1;
-            util_fatfs_error(fr, "f_close(/AUXIN.TXT) failed");
-        }
-        return;
-    }
-    auxin_error = 0;
-}
-
-void auxin(uint8_t *c) {
-    FRESULT fr;
-    UINT bw;
-
-    if (auxin_filep == NULL) {
-        auxin_filep = get_file();
-        if (auxin_filep == NULL) {
-            if (!auxin_error) {
-                auxin_error = 1;
-                printf("auxout: can not allocate file\n\r");
-            }
-            return;
-        }
-        auxin_error = 0;
-        #ifdef CPM_IO_AUX_DEBUG
-        printf("%s: open AUXIN.TXT\n\r", __func__);
-        #endif
-        fr = f_open(auxin_filep, "/AUXIN.TXT", FA_READ|FA_OPEN_ALWAYS);
-        if (fr != FR_OK) {
-            if (!auxin_error) {
-                auxin_error = 1;
-                util_fatfs_error(fr, "f_open(/AUXIN.TXT) failed");
-            }
-            return;
-        }
-        auxin_error = 0;
-        fr = f_lseek(auxin_filep, auxin_offset);
-        if (fr != FR_OK) {
-            if (!auxin_error) {
-                auxin_error = 1;
-                util_fatfs_error(fr, "f_lseek(/AUXIN.TXT) failed");
-            }
-            auxin_offset = 0;
-            f_rewind(auxin_filep);
-        }
-    }
-
-    timer_set_relative(&auxin_timer, auxin_timer_callback, 1000);
-
-    if (auxin_line_feed) {
-        // insert LF (\n 0Ah)
-        auxin_line_feed = 0;
-        *c = '\n';
-        return;
-    }
-
- read_one_more:
-    fr = f_read(auxin_filep, c, 1, &bw);
-    if (fr != FR_OK || bw != 1) {
-        if (fr != FR_OK && !auxin_error) {
-            // error
-            auxin_error = 1;
-            util_fatfs_error(fr, "f_read(/AUXIN.TXT) failed");
-        }
-        if (bw == 0) {
-            // reaching end of file
-            timer_expire(&auxin_timer);  // close the file immediately
-            auxin_offset = 0;  // rewind file position
-        }
-        *c = 0x1a;  // return EOF at end of file or some error
-        return;
-    }
+static int aux_in_conv(uint8_t *c) {
     if (*c == 0x00) {
-        goto read_one_more;
+        return 1;
     }
     if (*c == '\n') {
         // convert LF (\n 0Ah) to CRLF (\r 0Dh, \n 0Ah)
         *c = '\r';
-        auxin_line_feed = 1;
+        aux_in_line_feed = 1;
     }
-    auxin_offset++;
-    auxin_error = 0;
+
+    return 0;
+}
+
+static int aux_file_open(char *file_name, BYTE mode) {
+    FRESULT fr;
+
+    if (aux_filep == NULL) {
+        aux_filep = get_file();
+        if (aux_filep == NULL) {
+            ERROR(printf("aux: can not allocate file\n\r"));
+            aux_status = AUX_CLOSED;
+            return -1;
+        }
+        aux_error = 0;
+        aux_file_name = file_name;
+        #ifdef CPM_IO_AUX_DEBUG
+        printf("%s: open %s\n\r", __func__, aux_file_name);
+        #endif
+        fr = f_open(aux_filep, aux_file_name, mode);
+        if (fr != FR_OK) {
+            ERROR(util_fatfs_error(fr, "f_open() failed"));
+            put_file(aux_filep);
+            aux_filep = NULL;
+            aux_status = AUX_CLOSED;
+            return -1;
+        }
+        aux_error = 0;
+    }
+    if (mode & FA_WRITE) {
+        aux_status = AUX_FILE_WRITING;
+    } else {
+        fr = f_lseek(aux_filep, aux_in_offset);
+        if (fr != FR_OK) {
+            ERROR(util_fatfs_error(fr, "f_lseek(/AUXIN.TXT) failed"));
+            aux_in_offset = 0;
+            f_rewind(aux_filep);
+        }
+        aux_status = AUX_FILE_READING;
+    }
+
+    timer_set_relative(&aux_timer, aux_file_timer_callback, 1000);
+
+    return 0;
+}
+
+void aux_file_write(uint8_t c) {
+    FRESULT fr;
+
+    if (aux_status != AUX_FILE_WRITING) {
+        timer_expire(&aux_timer);  // close the file immediately
+    }
+
+    if (aux_file_open("/AUXOUT.TXT", FA_WRITE|FA_OPEN_APPEND) != 0) {
+        return;
+    }
+
+    if (aux_out_conv(&c)) {
+        return;
+    }
+
+    UINT bw;
+    fr = f_write(aux_filep, &c, 1, &bw);
+    if (fr != FR_OK || bw != 1) {
+        ERROR(util_fatfs_error(fr, "f_write(/AUXOUT.TXT) failed"));
+        return;
+    }
+    aux_error = 0;
+}
+
+void aux_file_read(uint8_t *c) {
+    FRESULT fr;
+    UINT bw;
+
+ read_one_more:
+    if (aux_status != AUX_FILE_READING) {
+        aux_in_line_feed = 0;
+        timer_expire(&aux_timer);  // close the file immediately
+    }
+
+    if (aux_file_open("/AUXIN.TXT", FA_READ|FA_OPEN_ALWAYS) != 0) {
+        return;
+    }
+
+    if (aux_in_line_feed) {
+        // insert LF (\n 0Ah)
+        aux_in_line_feed = 0;
+        *c = '\n';
+        return;
+    }
+
+    fr = f_read(aux_filep, c, 1, &bw);
+    if (fr != FR_OK || bw != 1) {
+        if (fr != FR_OK) {
+            ERROR(util_fatfs_error(fr, "f_read(/AUXIN.TXT) failed"));
+        }
+        if (bw == 0) {
+            // reaching end of file
+            timer_expire(&aux_timer);  // close the file immediately
+            aux_in_offset = 0;  // rewind file position
+        }
+        *c = 0x1a;  // return EOF at end of file or some error
+        return;
+    }
+    if (aux_in_conv(c)) {
+        goto read_one_more;
+    }
+    aux_in_offset++;
+    aux_error = 0;
+}
+
+void aux_modem_write(uint8_t c) {
+    if (aux_out_conv(&c)) {
+        return;
+    }
+    if (aux_status != AUX_MODEM_SENDING) {
+        timer_expire(&aux_timer);  // close the file immediately
+        printf("waiting for file transfer request via the terminal ...\n\r");
+        if (modem_send_open("AUXOUT.TXT", MODEM_XFER_UNKNOWN_FILE_SIZE) != 0) {
+            ERROR(printf("modem_send_open() failed\n\r"));
+            return;
+        }
+        aux_status = AUX_MODEM_SENDING;
+    }
+
+    if (modem_write(&c, 1) != 1) {
+        ERROR(printf("modem_write() failed\n\r"));
+        goto exit;
+    }
+    aux_error = 0;
+
+ exit:
+    timer_set_relative(&aux_timer, aux_modem_timer_callback, 1000);
+}
+
+void aux_modem_read(uint8_t *c) {
+    FRESULT fr;
+    UINT bw;
+
+ read_one_more:
+    if (aux_in_line_feed) {
+        // insert LF (\n 0Ah)
+        aux_in_line_feed = 0;
+        *c = '\n';
+        return;
+    }
+
+    if (aux_status != AUX_MODEM_RECEIVING) {
+        aux_in_line_feed = 0;
+        timer_expire(&aux_timer);  // close the file immediately
+        if (modem_recv_open() != 0) {
+            ERROR(printf("modem_recv_open() failed\n\r"));
+            return;
+        }
+        aux_status = AUX_MODEM_RECEIVING;
+    }
+
+    if (modem_read(c, 1) != 1) {
+        ERROR(printf("modem_read() failed\n\r"));
+        goto exit;
+    }
+    aux_error = 0;
+    if (aux_in_conv(c)) {
+        goto read_one_more;
+    }
+
+ exit:
+    timer_set_relative(&aux_timer, aux_modem_timer_callback, 1000);
 }
