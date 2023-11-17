@@ -119,6 +119,7 @@ int modem_recv_open(void)
     }
 
     modem_receiving = 1;
+    ymodem_receive_init(&ctx, modem_buf);
     modem_on_line = 1;
 
     return 0;
@@ -141,8 +142,18 @@ int modem_send(void)
 int modem_recv_to_save(void)
 {
     int res;
+    unsigned int n;
 
-    res = ymodem_receive(modem_buf);
+    while ((res = ymodem_receive_block(&ctx, &n)) == MODEM_XFER_RES_OK) {
+        if (ctx.file_name[0] == '\0') {
+            return MODEM_XFER_RES_OK;
+        }
+        res = modem_xfer_save(ctx.file_name, ctx.file_offset, ctx.buf, n);
+        if (res != MODEM_XFER_RES_OK) {
+            ymodem_send_cancel(&ctx);
+            return res;
+        }
+    }
     modem_on_line = 0;
 
     return res;
