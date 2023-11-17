@@ -35,6 +35,8 @@ static FSIZE_t aux_in_offset = 0;
 static uint8_t aux_in_line_feed = 0;
 static char *aux_file_name = NULL;
 
+#define ERROR(a) if (!aux_error) { aux_error = 1; a; }
+
 static void aux_timer_callback(timer_t *timer) {
     FRESULT fr;
 
@@ -45,10 +47,7 @@ static void aux_timer_callback(timer_t *timer) {
     put_file(aux_filep);
     aux_filep = NULL;
     if (fr != FR_OK) {
-        if (!aux_error) {
-            aux_error = 1;
-            util_fatfs_error(fr, "f_close() failed");
-        }
+        ERROR(util_fatfs_error(fr, "f_close() failed"));
         return;
     }
     aux_error = 0;
@@ -60,10 +59,7 @@ void auxout(uint8_t c) {
     if (aux_filep == NULL) {
         aux_filep = get_file();
         if (aux_filep == NULL) {
-            if (!aux_error) {
-                aux_error = 1;
-                printf("auxout: can not allocate file\n\r");
-            }
+            ERROR(printf("auxout: can not allocate file\n\r"));
             return;
         }
         aux_error = 0;
@@ -73,10 +69,7 @@ void auxout(uint8_t c) {
         #endif
         fr = f_open(aux_filep, aux_file_name, FA_WRITE|FA_OPEN_APPEND);
         if (fr != FR_OK) {
-            if (!aux_error) {
-                aux_error = 1;
-                util_fatfs_error(fr, "f_open(/AUXOUT.TXT) failed");
-            }
+            ERROR(util_fatfs_error(fr, "f_open(/AUXOUT.TXT) failed"));
             return;
         }
         aux_error = 0;
@@ -98,11 +91,7 @@ void auxout(uint8_t c) {
     UINT bw;
     fr = f_write(aux_filep, &c, 1, &bw);
     if (fr != FR_OK || bw != 1) {
-        // write error
-        if (!aux_error) {
-            aux_error = 1;
-            util_fatfs_error(fr, "f_write(/AUXOUT.TXT) failed");
-        }
+        ERROR(util_fatfs_error(fr, "f_write(/AUXOUT.TXT) failed"));
         return;
     }
     aux_error = 0;
@@ -115,10 +104,7 @@ void auxin(uint8_t *c) {
     if (aux_filep == NULL) {
         aux_filep = get_file();
         if (aux_filep == NULL) {
-            if (!aux_error) {
-                aux_error = 1;
-                printf("auxout: can not allocate file\n\r");
-            }
+            ERROR(printf("auxout: can not allocate file\n\r"));
             return;
         }
         aux_error = 0;
@@ -128,19 +114,13 @@ void auxin(uint8_t *c) {
         #endif
         fr = f_open(aux_filep, aux_file_name, FA_READ|FA_OPEN_ALWAYS);
         if (fr != FR_OK) {
-            if (!aux_error) {
-                aux_error = 1;
-                util_fatfs_error(fr, "f_open(/AUXIN.TXT) failed");
-            }
+            ERROR(util_fatfs_error(fr, "f_open(/AUXIN.TXT) failed"));
             return;
         }
         aux_error = 0;
         fr = f_lseek(aux_filep, aux_in_offset);
         if (fr != FR_OK) {
-            if (!aux_error) {
-                aux_error = 1;
-                util_fatfs_error(fr, "f_lseek(/AUXIN.TXT) failed");
-            }
+            ERROR(util_fatfs_error(fr, "f_lseek(/AUXIN.TXT) failed"));
             aux_in_offset = 0;
             f_rewind(aux_filep);
         }
@@ -159,9 +139,7 @@ void auxin(uint8_t *c) {
     fr = f_read(aux_filep, c, 1, &bw);
     if (fr != FR_OK || bw != 1) {
         if (fr != FR_OK && !aux_error) {
-            // error
-            aux_error = 1;
-            util_fatfs_error(fr, "f_read(/AUXIN.TXT) failed");
+            ERROR(util_fatfs_error(fr, "f_read(/AUXIN.TXT) failed"));
         }
         if (bw == 0) {
             // reaching end of file
