@@ -53,8 +53,11 @@ static char *msgtmpbuf = NULL;
 static int __modem_open(void)
 {
     if (modem_in_use) {
+        printf("%s: medem is busy\n\r", __func__);
         return -1;
     }
+
+    modem_in_use = 1;
 
     #if defined(DEBUG)
     static uint8_t tmp[1200];
@@ -66,6 +69,7 @@ static int __modem_open(void)
     modem_buf = util_memalloc(MODEM_XFER_BUF_SIZE);
     if (msgbuf == NULL || msgtmpbuf == NULL || modem_buf == NULL) {
         modem_close();
+        printf("%s: memory allocation failed\n\r", __func__);
         return -1;
     }
 
@@ -90,6 +94,7 @@ int modem_send_open(char *file_name, uint32_t size)
     if (res != MODEM_XFER_RES_OK) {
         modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_header() failed, %d\n\r", res);
         modem_close();
+        printf("%s(%d): failed\n\r", __func__, __LINE__);
         return -1;
     }
     modem_on_line = 1;
@@ -178,9 +183,11 @@ void modem_close(void)
     if (modem_receiving) {
         printf("\n\r");
     }
-    printf("%s", msgbuf);
-    msglen = 0;
-    msgbuf[0] = '\0';
+    if (msgbuf != NULL && msglen != 0) {
+        printf("%s\n\r", msgbuf);
+        msglen = 0;
+        msgbuf[0] = '\0';
+    }
 
     // close file
     if (filep) {
