@@ -191,8 +191,10 @@ extern void io_invoke_target_cpu_teardown(int *saved_status);
 extern void io_set_interrupt_data(uint8_t data);
 
 // io aux
-extern void auxout(uint8_t c);
-extern void auxin(uint8_t *c);
+extern void aux_file_write(uint8_t c);
+extern void aux_file_read(uint8_t *c);
+extern void aux_modem_write(uint8_t c);
+extern void aux_modem_read(uint8_t *c);
 
 // monitor
 extern int invoke_monitor;
@@ -242,7 +244,9 @@ extern uint8_t *modem_buf;
 extern int modem_send_open(char *file_name, uint32_t size);
 extern int modem_recv_open(void);
 extern int modem_send(void);
+extern int modem_write(uint8_t *buf, unsigned int n);
 extern int modem_recv_to_save(void);
+extern int modem_read(uint8_t *buf, unsigned int n);
 extern void modem_cancel(void);
 extern void modem_close(void);
 
