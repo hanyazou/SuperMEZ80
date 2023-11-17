@@ -242,7 +242,9 @@ extern uint8_t *modem_buf;
 extern int modem_send_open(char *file_name, uint32_t size);
 extern int modem_recv_open(void);
 extern int modem_send(void);
+extern int modem_write(uint8_t *buf, unsigned int n);
 extern int modem_recv_to_save(void);
+extern int modem_read(uint8_t *buf, unsigned int n);
 extern void modem_cancel(void);
 extern void modem_close(void);
 
