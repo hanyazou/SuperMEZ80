@@ -375,7 +375,7 @@ void io_handle() {
         key_input_io_read_count++;
         break;
     case IO_AUXDAT:
-        auxin(&c);
+        aux_file_read(&c);
         set_data_pins(c);
         break;
     case DISK_REG_DATA:
@@ -428,7 +428,7 @@ void io_handle() {
         io_output_chars++;
         break;
     case IO_AUXDAT:
-        auxout(io_data);
+        aux_file_write(io_data);
         break;
     case DISK_REG_DATA:
         if (disk_datap && (disk_datap - disk_buf) < SECTOR_SIZE) {
