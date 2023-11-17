@@ -29,6 +29,8 @@
 #include <utils.h>
 
 uint8_t *modem_buf = NULL;
+uint8_t modem_buf_ofs = 0;
+uint8_t modem_buf_len = 0;
 
 static uint8_t modem_in_use = 0;
 static uint8_t modem_on_line = 0;
@@ -98,6 +100,7 @@ int modem_send_open(char *file_name, uint32_t size)
         return -1;
     }
     modem_on_line = 1;
+    modem_buf_ofs = 0;
 
     return 0;
 }
@@ -121,6 +124,8 @@ int modem_recv_open(void)
     modem_receiving = 1;
     ymodem_receive_init(&ctx, modem_buf);
     modem_on_line = 1;
+    modem_buf_ofs = 0;
+    modem_buf_len = 0;
 
     return 0;
 }
@@ -137,6 +142,37 @@ int modem_send(void)
     }
 
     return 0;
+}
+
+int modem_write(uint8_t *buf, unsigned int len)
+{
+    unsigned int n;
+    int res;
+
+    if (!modem_on_line) {
+        return -1;
+    }
+
+    res = 0;
+    while (0 < len) {
+        n = UTIL_MIN(MODEM_XFER_BUF_SIZE - modem_buf_ofs, len);
+        memcpy(&modem_buf[modem_buf_ofs], buf, n);
+        modem_buf_ofs += n;
+        if (modem_buf_ofs == MODEM_XFER_BUF_SIZE) {
+            if (modem_send() != 0) {
+                if (0 < res) {
+                    return res;
+                } else {
+                    return -1;
+                }
+            }
+            modem_buf_ofs = 0;
+        }
+        len -= n;
+        res += n;
+    }
+
+    return res;
 }
 
 int modem_recv_to_save(void)
@@ -159,6 +195,40 @@ int modem_recv_to_save(void)
     return res;
 }
 
+int modem_read(uint8_t *buf, unsigned int len)
+{
+    unsigned int n;
+    int res;
+
+    if (!modem_on_line) {
+        return -1;
+    }
+
+    res = 0;
+    while (0 < len) {
+        n = UTIL_MIN(modem_buf_len - modem_buf_ofs, len);
+        memcpy(buf, &modem_buf[modem_buf_ofs], n);
+        modem_buf_ofs += n;
+        len -= n;
+        res += n;
+        if (modem_buf_ofs == modem_buf_len) {
+            if (ymodem_receive_block(&ctx, &n) != MODEM_XFER_RES_OK) {
+                modem_close();
+                printf("ymodem_receive_block() failed\n\r");
+                if (0 < res) {
+                    return res;
+                } else {
+                    return -1;
+                }
+            }
+            modem_buf_ofs = 0;
+            modem_buf_len = (uint8_t)n;
+        }
+    }
+
+    return res;
+}
+
 void modem_cancel(void)
 {
     if (modem_on_line) {
@@ -170,6 +240,15 @@ void modem_cancel(void)
 void modem_close(void)
 {
     int res;
+
+    // flush
+    if (0 < modem_buf_ofs) {
+        if (!modem_receiving && modem_on_line && modem_buf != NULL) {
+            memset(&modem_buf[modem_buf_ofs], 0x00, MODEM_XFER_BUF_SIZE - modem_buf_ofs);
+            modem_send();
+        }
+        modem_buf_ofs = 0;
+    }
 
     // hungup
     if (modem_on_line) {
