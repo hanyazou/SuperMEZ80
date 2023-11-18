@@ -62,10 +62,10 @@ static int __modem_open(void)
     modem_in_use = 1;
 
     #if defined(DEBUG)
-    static uint8_t tmp[1200];
+    static uint8_t tmp[msgbuf_size];
     msgbuf = (char*)tmp;
     #else
-    msgbuf = util_memalloc(256);
+    msgbuf = util_memalloc(msgbuf_size);
     #endif
     msgtmpbuf = util_memalloc(msgtmpbuf_size);
     modem_buf = util_memalloc(MODEM_XFER_BUF_SIZE);
@@ -274,7 +274,13 @@ void modem_close(void)
         printf("\n\r");
     }
     if (msgbuf != NULL && msglen != 0) {
+        #ifdef DEBUG
+        printf("---------- %d bytes\n\r", msglen);
+        #endif
         printf("%s\n\r", msgbuf);
+        #ifdef DEBUG
+        printf("----------\n\r");
+        #endif
         msglen = 0;
         msgbuf[0] = '\0';
     }
@@ -322,6 +328,20 @@ int modem_xfer_rx(uint8_t *c, int timeout_ms)
     return getch_buffered_timeout((char*)c, timeout_ms);
 }
 
+static void save_msg(const char *msg)
+{
+    unsigned int len = strlen(msg);
+    if (msgbuf_size <= msglen + len) {
+        unsigned int ofs = msglen + len - msgbuf_size;
+        for (unsigned int i = 0; i < msgbuf_size - ofs; i++) {
+            msgbuf[i] = msgbuf[ofs + i];
+        }
+        msglen -= ofs;
+    }
+    memcpy(&msgbuf[msglen], msg, len + 1);
+    msglen += len;
+}
+
 void modem_xfer_printf(int log_level, const char *format, ...)
 {
     const unsigned int bufsize = msgtmpbuf_size;
@@ -331,20 +351,14 @@ void modem_xfer_printf(int log_level, const char *format, ...)
     va_start (ap, format);
     vsnprintf(buf, bufsize, format, ap);
     va_end (ap);
-    buf[bufsize - 2] = '\n';
     unsigned int len = strlen(buf);
-    buf[len] = '\r';
-    len++;
-    buf[len] = '\0';
-    if (msgbuf_size <= msglen + len) {
-        unsigned int ofs = (msglen + len + 1) - msgbuf_size;
-        for (unsigned int i = 0; i < msgbuf_size - ofs; i++) {
-            msgbuf[i] = msgbuf[ofs + i];
-        }
-        msglen -= ofs;
+    if (0 < len && buf[len - 1] == '\n') {
+        buf[len - 1] = '\r';
+        save_msg(buf);
+        save_msg("\n");
+    } else {
+        save_msg(buf);
     }
-    memcpy(&msgbuf[msglen], buf, len + 1);
-    msglen += len;
 }
 
 int modem_xfer_save(char *file_name, uint32_t offset, uint8_t *buf, uint16_t size)
