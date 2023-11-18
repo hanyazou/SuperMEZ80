@@ -194,6 +194,8 @@ extern void io_set_interrupt_data(uint8_t data);
 // io aux
 extern void aux_file_write(uint8_t c);
 extern void aux_file_read(uint8_t *c);
+extern void aux_modem_write(uint8_t c);
+extern void aux_modem_read(uint8_t *c);
 
 // monitor
 extern int invoke_monitor;

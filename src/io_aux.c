@@ -27,6 +27,7 @@
 
 #include <ff.h>
 #include <utils.h>
+#include <modem_xfer.h>
 
 enum {
     AUX_CLOSED,
@@ -45,6 +46,17 @@ static uint8_t aux_in_line_feed = 0;
 static char *aux_file_name = NULL;
 
 #define ERROR(a) if (!aux_error) { aux_error = 1; a; }
+
+static void aux_modem_timer_callback(timer_t *timer) {
+    #ifdef CPM_IO_AUX_DEBUG
+    printf("%s: close\n\r", __func__);
+    #endif
+    if (aux_status == AUX_CLOSED) {
+        return;
+    }
+    modem_close();
+    aux_status = AUX_CLOSED;
+}
 
 static void aux_file_timer_callback(timer_t *timer) {
     FRESULT fr;
@@ -235,4 +247,63 @@ void aux_file_read(uint8_t *c) {
     #ifdef CPM_IO_AUX_DEBUG_VERBOSE
     printf("%s: return %02Xh\n\r", __func__, *c);
     #endif
+}
+
+void aux_modem_write(uint8_t c) {
+    if (aux_out_conv(&c)) {
+        return;
+    }
+    if (aux_status != AUX_MODEM_SENDING) {
+        timer_expire(&aux_timer);  // close the file immediately
+        printf("waiting for file transfer request via the terminal ...\n\r");
+        if (modem_send_open("AUXOUT.TXT", MODEM_XFER_UNKNOWN_FILE_SIZE) != 0) {
+            ERROR(printf("modem_send_open() failed\n\r"));
+            return;
+        }
+        aux_status = AUX_MODEM_SENDING;
+    }
+
+    if (modem_write(&c, 1) != 1) {
+        ERROR(printf("modem_write() failed\n\r"));
+        goto exit;
+    }
+    aux_error = 0;
+
+ exit:
+    timer_set_relative(&aux_timer, aux_modem_timer_callback, 1000);
+}
+
+void aux_modem_read(uint8_t *c) {
+    FRESULT fr;
+    UINT bw;
+
+ read_one_more:
+    if (aux_in_line_feed) {
+        // insert LF (\n 0Ah)
+        aux_in_line_feed = 0;
+        *c = '\n';
+        return;
+    }
+
+    if (aux_status != AUX_MODEM_RECEIVING) {
+        aux_in_line_feed = 0;
+        timer_expire(&aux_timer);  // close the file immediately
+        if (modem_recv_open() != 0) {
+            ERROR(printf("modem_recv_open() failed\n\r"));
+            return;
+        }
+        aux_status = AUX_MODEM_RECEIVING;
+    }
+
+    if (modem_read(c, 1) != 1) {
+        ERROR(printf("modem_read() failed\n\r"));
+        goto exit;
+    }
+    aux_error = 0;
+    if (aux_in_conv(c)) {
+        goto read_one_more;
+    }
+
+ exit:
+    timer_set_relative(&aux_timer, aux_modem_timer_callback, 1000);
 }
