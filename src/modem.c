@@ -114,13 +114,6 @@ int modem_recv_open(void)
         return res;
     }
 
-    filep = get_file();
-    if (filep == NULL) {
-        modem_close();
-        printf("too many files\n\r");
-        return -1;
-    }
-
     modem_receiving = 1;
     ymodem_receive_init(&ctx, modem_buf);
     modem_on_line = 1;
@@ -370,6 +363,11 @@ int modem_xfer_save(char *file_name, uint32_t offset, uint8_t *buf, uint16_t siz
     FRESULT fres;
     char tmp[MAX_FILE_NAME_LEN];
     unsigned int n;
+
+    if (filep == NULL && (filep = get_file()) == NULL) {
+        modem_xfer_printf(MODEM_XFER_LOG_ERROR, "too many files\n");
+        return -6;
+    }
 
     memcpy(tmp, file_name, sizeof(tmp));
     tmp[sizeof(tmp) - 1] = '\0';
