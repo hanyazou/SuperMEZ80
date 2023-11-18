@@ -21,6 +21,7 @@
 //#define CPM_MEM_DEBUG
 //#define CPM_IO_DEBUG
 //#define CPM_IO_AUX_DEBUG
+//#define CPM_IO_AUX_DEBUG_VERBOSE
 //#define CPM_MMU_DEBUG
 //#define CPM_MEMCPY_DEBUG
 //#define CPM_MMU_EXERCISE
