@@ -60,6 +60,10 @@ static char key_input_buffer[192];
 static unsigned int key_input = 0;
 static unsigned int key_input_buffer_head = 0;
 static unsigned char key_input_raw = 0;
+unsigned int key_input_count = 0;
+unsigned int key_input_read_count = 0;
+unsigned int key_input_drop_count = 0;
+unsigned int key_input_io_read_count = 0;
 static char con_output_buffer[80];
 static unsigned int con_output = 0;
 static unsigned int con_output_buffer_head = 0;
@@ -137,6 +141,7 @@ int getch_buffered_timeout(char *c, int timeout_ms) {
             U3RXIE = 1;         // Enable Rx interrupt
             GIE = 1;            // Enable interrupt
             *c = res;
+            key_input_read_count++;
             return 1;
         }
         if (invoke_monitor) {
@@ -164,10 +169,8 @@ void ungetch(char c) {
     if (key_input < sizeof(key_input_buffer)) {
         key_input_buffer[(key_input_buffer_head + key_input) % sizeof(key_input_buffer)] = c;
         key_input++;
-    }
-    if ((sizeof(key_input_buffer) * 4 / 5) <= key_input) {
-        // Disable key input interrupt if key buffer is full
-        U3RXIE = 0;
+    } else {
+        key_input_drop_count++;
     }
     GIE = 1;                    // Enable interrupt
 }
@@ -260,6 +263,7 @@ void __interrupt(irq(default),base(8)) Default_ISR(){
     // Read UART input if Rx interrupt flag is set
     if (U3RXIF) {
         uint8_t c = U3RXB;
+        key_input_count++;
         if (key_input_raw || c != 0x00) {
             // Save input key to the buffer if the input is not a break key
             ungetch(c);
@@ -368,6 +372,7 @@ void io_handle() {
             timer_run();
         }
         set_data_pins(c);         // Out the character
+        key_input_io_read_count++;
         break;
     case IO_AUXDAT:
         #if AUX_FILE
