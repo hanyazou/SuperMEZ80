@@ -70,11 +70,17 @@ static void aux_file_timer_callback(timer_t *timer) {
 static int aux_out_conv(uint8_t *c) {
     if (*c == 0x00 || *c == '\r') {
         // ignore 00h and 0Dh (Carriage Return)
+        #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+        printf("%s: ignore %02Xh\n\r", __func__, *c);
+        #endif
         return 1;
     }
 
     if (*c == 0x1a) {
         // 1Ah (EOF)
+        #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+        printf("%s: %02Xh is EOF\n\r", __func__, *c);
+        #endif
         timer_expire(&aux_timer);  // close the file immediately
         return 1;
     }
@@ -84,10 +90,16 @@ static int aux_out_conv(uint8_t *c) {
 
 static int aux_in_conv(uint8_t *c) {
     if (*c == 0x00) {
+        #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+        printf("%s: ignore %02Xh\n\r", __func__, *c);
+        #endif
         return 1;
     }
     if (*c == '\n') {
         // convert LF (\n 0Ah) to CRLF (\r 0Dh, \n 0Ah)
+        #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+        printf("%s: convert LF (\\n 0Ah) to CRLF (\\r 0Dh, \\n 0Ah)\n\r", __func__);
+        #endif
         *c = '\r';
         aux_in_line_feed = 1;
     }
@@ -97,6 +109,11 @@ static int aux_in_conv(uint8_t *c) {
 
 static int aux_file_open(char *file_name, BYTE mode) {
     FRESULT fr;
+
+    if (aux_status != AUX_CLOSED) {
+        ERROR(printf("aux: internal status error\n\r"));
+        return 0;
+    }
 
     if (aux_filep == NULL) {
         aux_filep = get_file();
@@ -132,21 +149,20 @@ static int aux_file_open(char *file_name, BYTE mode) {
         aux_status = AUX_FILE_READING;
     }
 
-    timer_set_relative(&aux_timer, aux_file_timer_callback, 1000);
-
     return 0;
 }
 
 void aux_file_write(uint8_t c) {
     FRESULT fr;
 
+    // open the file before aux_out_conv() to ensure that the file shall be created
     if (aux_status != AUX_FILE_WRITING) {
         timer_expire(&aux_timer);  // close the file immediately
+        if (aux_file_open("/AUXOUT.TXT", FA_WRITE|FA_OPEN_APPEND) != 0) {
+            return;
+        }
     }
-
-    if (aux_file_open("/AUXOUT.TXT", FA_WRITE|FA_OPEN_APPEND) != 0) {
-        return;
-    }
+    timer_set_relative(&aux_timer, aux_file_timer_callback, 1000);
 
     if (aux_out_conv(&c)) {
         return;
@@ -154,6 +170,9 @@ void aux_file_write(uint8_t c) {
 
     UINT bw;
     fr = f_write(aux_filep, &c, 1, &bw);
+    #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+    printf("%s: f_write: fr=%d, bw=%d, c=%02Xh\n\r", __func__, fr, bw, c);
+    #endif
     if (fr != FR_OK || bw != 1) {
         ERROR(util_fatfs_error(fr, "f_write(/AUXOUT.TXT) failed"));
         return;
@@ -163,41 +182,57 @@ void aux_file_write(uint8_t c) {
 
 void aux_file_read(uint8_t *c) {
     FRESULT fr;
-    UINT bw;
+    UINT br;
 
  read_one_more:
     if (aux_status != AUX_FILE_READING) {
         aux_in_line_feed = 0;
         timer_expire(&aux_timer);  // close the file immediately
+        if (aux_file_open("/AUXIN.TXT", FA_READ|FA_OPEN_ALWAYS) != 0) {
+            return;
+        }
     }
-
-    if (aux_file_open("/AUXIN.TXT", FA_READ|FA_OPEN_ALWAYS) != 0) {
-        return;
-    }
+    timer_set_relative(&aux_timer, aux_file_timer_callback, 1000);
 
     if (aux_in_line_feed) {
         // insert LF (\n 0Ah)
         aux_in_line_feed = 0;
         *c = '\n';
+        #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+        printf("%s: insert LF (\\n %02Xh)\n\r", __func__, *c);
+        #endif
         return;
     }
 
-    fr = f_read(aux_filep, c, 1, &bw);
-    if (fr != FR_OK || bw != 1) {
+    fr = f_read(aux_filep, c, 1, &br);
+    #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+    if (br == 0) {
+        printf("%s: f_read: fr=%d, br=0\n\r", __func__, fr);
+    } else {
+        printf("%s: f_read: fr=%d, br=%d, c=%02Xh\n\r", __func__, fr, br, *c);
+    }
+    #endif
+    if (fr != FR_OK || br != 1) {
         if (fr != FR_OK) {
             ERROR(util_fatfs_error(fr, "f_read(/AUXIN.TXT) failed"));
         }
-        if (bw == 0) {
+        if (br == 0) {
             // reaching end of file
             timer_expire(&aux_timer);  // close the file immediately
             aux_in_offset = 0;  // rewind file position
         }
+        #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+        printf("%s: reached EOF\n\r", __func__);
+        #endif
         *c = 0x1a;  // return EOF at end of file or some error
         return;
     }
+    aux_in_offset++;
+    aux_error = 0;
     if (aux_in_conv(c)) {
         goto read_one_more;
     }
-    aux_in_offset++;
-    aux_error = 0;
+    #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+    printf("%s: return %02Xh\n\r", __func__, *c);
+    #endif
 }
