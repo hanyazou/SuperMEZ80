@@ -124,6 +124,8 @@ int modem_recv_open(void)
     modem_receiving = 1;
     ymodem_receive_init(&ctx, modem_buf);
     modem_on_line = 1;
+
+    // the buffer is empty
     modem_buf_ofs = 0;
     modem_buf_len = 0;
 
@@ -158,6 +160,7 @@ int modem_write(uint8_t *buf, unsigned int len)
         n = UTIL_MIN(MODEM_XFER_BUF_SIZE - modem_buf_ofs, len);
         memcpy(&modem_buf[modem_buf_ofs], buf, n);
         modem_buf_ofs += n;
+        // flush the buffer if the buffer is full
         if (modem_buf_ofs == MODEM_XFER_BUF_SIZE) {
             if (modem_send() != 0) {
                 if (0 < res) {
@@ -206,11 +209,7 @@ int modem_read(uint8_t *buf, unsigned int len)
 
     res = 0;
     while (0 < len) {
-        n = UTIL_MIN(modem_buf_len - modem_buf_ofs, len);
-        memcpy(buf, &modem_buf[modem_buf_ofs], n);
-        modem_buf_ofs += n;
-        len -= n;
-        res += n;
+        // receive data to the buffer if the buffer is empty
         if (modem_buf_ofs == modem_buf_len) {
             if (ymodem_receive_block(&ctx, &n) != MODEM_XFER_RES_OK) {
                 modem_close();
@@ -224,6 +223,11 @@ int modem_read(uint8_t *buf, unsigned int len)
             modem_buf_ofs = 0;
             modem_buf_len = (uint8_t)n;
         }
+        n = UTIL_MIN(modem_buf_len - modem_buf_ofs, len);
+        memcpy(buf, &modem_buf[modem_buf_ofs], n);
+        modem_buf_ofs += n;
+        len -= n;
+        res += n;
     }
 
     return res;
@@ -241,7 +245,7 @@ void modem_close(void)
 {
     int res;
 
-    // flush
+    // flush the buffer
     if (0 < modem_buf_ofs) {
         if (!modem_receiving && modem_on_line && modem_buf != NULL) {
             memset(&modem_buf[modem_buf_ofs], 0x00, MODEM_XFER_BUF_SIZE - modem_buf_ofs);
