@@ -41,6 +41,7 @@ static uint8_t set_key_input = 0;
 static ymodem_context ctx;
 
 #define MAX_FILE_NAME_LEN 13
+// #define DEBUG
 #ifdef DEBUG
 #define msgbuf_size 1200
 #else
@@ -341,8 +342,20 @@ static void save_msg(const char *msg)
 
 void modem_xfer_printf(int log_level, const char *format, ...)
 {
+    static uint8_t newline = 1;
     const unsigned int bufsize = msgtmpbuf_size;
     char *buf = msgtmpbuf;
+    uint32_t tick;
+
+    #ifdef DEBUG
+    // time stamp
+    if (newline) {
+        board_tick(&tick);
+        snprintf(buf, bufsize, "%d.%02d ", (int)(tick / BOARD_TICK_HZ),
+                 (int)((tick % BOARD_TICK_HZ) * 1000 / BOARD_TICK_HZ / 10));
+        save_msg(buf);
+    }
+    #endif
 
     va_list ap;
     va_start (ap, format);
@@ -353,6 +366,7 @@ void modem_xfer_printf(int log_level, const char *format, ...)
         buf[len - 1] = '\r';
         save_msg(buf);
         save_msg("\n");
+        newline = 1;
     } else {
         save_msg(buf);
     }
