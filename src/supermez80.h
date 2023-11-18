@@ -162,6 +162,10 @@ enum {
     IO_STAT_PREPINVOKE    = 80,
     IO_STAT_MONITOR       = 90
 };
+extern unsigned int key_input_count;
+extern unsigned int key_input_read_count;
+extern unsigned int key_input_drop_count;
+extern unsigned int key_input_io_read_count;
 extern void io_init(void);
 extern int io_stat(void);
 extern int getch(void);
