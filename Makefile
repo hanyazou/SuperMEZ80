@@ -99,6 +99,7 @@ NO_MONITOR ?= 0
 ifneq ($(NO_MONITOR), 0)
     CONFIG_NO_MONITOR=1
 endif
+#CONFIG_AUX_FILE=1
 
 INCS ?=-I$(SRC_DIR) -I$(DRIVERS_DIR) -I$(FATFS_DIR)/source -I$(BUILD_DIR) -I$(MODEM_XFER_DIR)
 
@@ -205,6 +206,9 @@ $(BUILD_DIR)/config.h:
 	fi
 	if [ "$(CONFIG_NO_MONITOR)" != "" ]; then \
 	    echo "#define NO_MONITOR $(CONFIG_NO_MONITOR)" >> $@; \
+	fi
+	if [ "$(CONFIG_AUX_FILE)" != "" ]; then \
+	    echo "#define AUX_FILE $(CONFIG_AUX_FILE)" >> $@; \
 	fi
 
 $(BUILD_DIR)/config_asm.inc: Makefile
