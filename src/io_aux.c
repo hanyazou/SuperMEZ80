@@ -67,6 +67,34 @@ static void aux_file_timer_callback(timer_t *timer) {
     aux_error = 0;
 }
 
+static int aux_out_conv(uint8_t *c) {
+    if (*c == 0x00 || *c == '\r') {
+        // ignore 00h and 0Dh (Carriage Return)
+        return 1;
+    }
+
+    if (*c == 0x1a) {
+        // 1Ah (EOF)
+        timer_expire(&aux_timer);  // close the file immediately
+        return 1;
+    }
+
+    return 0;
+}
+
+static int aux_in_conv(uint8_t *c) {
+    if (*c == 0x00) {
+        return 1;
+    }
+    if (*c == '\n') {
+        // convert LF (\n 0Ah) to CRLF (\r 0Dh, \n 0Ah)
+        *c = '\r';
+        aux_in_line_feed = 1;
+    }
+
+    return 0;
+}
+
 static int aux_file_open(char *file_name, BYTE mode) {
     FRESULT fr;
 
@@ -120,14 +148,7 @@ void aux_file_write(uint8_t c) {
         return;
     }
 
-    if (c == 0x00 || c == '\r') {
-        // ignore 00h and 0Dh (Carriage Return)
-        return;
-    }
-
-    if (c == 0x1a) {
-        // 1Ah (EOF)
-        timer_expire(&aux_timer);  // close the file immediately
+    if (aux_out_conv(&c)) {
         return;
     }
 
@@ -174,13 +195,8 @@ void aux_file_read(uint8_t *c) {
         *c = 0x1a;  // return EOF at end of file or some error
         return;
     }
-    if (*c == 0x00) {
+    if (aux_in_conv(c)) {
         goto read_one_more;
-    }
-    if (*c == '\n') {
-        // convert LF (\n 0Ah) to CRLF (\r 0Dh, \n 0Ah)
-        *c = '\r';
-        aux_in_line_feed = 1;
     }
     aux_in_offset++;
     aux_error = 0;
