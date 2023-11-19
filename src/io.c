@@ -360,7 +360,7 @@ void io_handle() {
     set_data_dir(0x00);           // Set as output
     switch (io_addr) {
     case UART_CREG:
-        if (key_input) {
+        if (key_input && !key_input_raw) {
             set_data_pins(0xff);  // input available
         } else {
             set_data_pins(0x00);  // no input available
