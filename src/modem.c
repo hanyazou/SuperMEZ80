@@ -35,6 +35,7 @@ uint8_t modem_buf_len = 0;
 static uint8_t modem_in_use = 0;
 static uint8_t modem_on_line = 0;
 static uint8_t modem_receiving = 0;
+static uint8_t modem_error = 0;
 static FIL *filep = NULL;
 static int raw;
 static uint8_t set_key_input = 0;
@@ -61,6 +62,7 @@ static int __modem_open(void)
     }
 
     modem_in_use = 1;
+    modem_error = 0;
 
     #if defined(DEBUG)
     static uint8_t tmp[msgbuf_size];
@@ -71,6 +73,7 @@ static int __modem_open(void)
     msgtmpbuf = util_memalloc(msgtmpbuf_size);
     modem_buf = util_memalloc(MODEM_XFER_BUF_SIZE);
     if (msgbuf == NULL || msgtmpbuf == NULL || modem_buf == NULL) {
+        modem_error = 1;
         modem_close();
         printf("%s: memory allocation failed\n\r", __func__);
         return -1;
@@ -96,6 +99,7 @@ int modem_send_open(char *file_name, uint32_t size)
     res = ymodem_send_header(&ctx, file_name, size);
     if (res != MODEM_XFER_RES_OK) {
         modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_header() failed, %d\n\r", res);
+        modem_error = 1;
         modem_close();
         printf("%s(%d): failed\n\r", __func__, __LINE__);
         return -1;
@@ -134,6 +138,7 @@ int modem_send(void)
     if (res != MODEM_XFER_RES_OK) {
         modem_xfer_printf(MODEM_XFER_LOG_ERROR, "ymodem_send_block() failed, %d\n\r", res);
         modem_on_line = 0;
+        modem_error = 1;
         return -1;
     }
 
@@ -160,6 +165,7 @@ int modem_write(uint8_t *buf, unsigned int len)
                 if (0 < res) {
                     return res;
                 } else {
+                    modem_error = 1;
                     return -1;
                 }
             }
@@ -179,14 +185,21 @@ int modem_recv_to_save(void)
 
     while ((res = ymodem_receive_block(&ctx, &n)) == MODEM_XFER_RES_OK) {
         if (ctx.file_name[0] == '\0') {
+            // transfer succeeded
+            modem_on_line = 0;
             return MODEM_XFER_RES_OK;
         }
         res = modem_xfer_save(ctx.file_name, ctx.file_offset, ctx.buf, n);
         if (res != MODEM_XFER_RES_OK) {
+            // cancel transfer if failure to save the data
             ymodem_send_cancel(&ctx);
+            modem_error = 1;
+            modem_on_line = 0;
             return res;
         }
     }
+    // some transfer error detected
+    modem_error = 1;
     modem_on_line = 0;
 
     return res;
@@ -205,12 +218,24 @@ int modem_read(uint8_t *buf, unsigned int len)
     while (0 < len) {
         // receive data to the buffer if the buffer is empty
         if (modem_buf_ofs == modem_buf_len) {
-            if (ymodem_receive_block(&ctx, &n) != MODEM_XFER_RES_OK) {
-                modem_close();
-                printf("ymodem_receive_block() failed\n\r");
+            int modem_xfer_res = ymodem_receive_block(&ctx, &n);
+            if (modem_xfer_res != MODEM_XFER_RES_OK || n == 0) {
+                if (modem_xfer_res != MODEM_XFER_RES_OK) {
+                    modem_xfer_printf(MODEM_XFER_LOG_ERROR,
+                                      "ymodem_receive_block failed, res=%d\n", modem_xfer_res);
+                }
+                // the transfer has been terminated whether it succeeded or failed (canceled)
+                modem_on_line = 0;
                 if (0 < res) {
+                    // we have some bytes in the buffer
                     return res;
+                } else
+                if (n == 0) {
+                    // EOF (End Of Transfer)
+                    return 0;
                 } else {
+                    // error
+                    modem_error = 1;
                     return -1;
                 }
             }
@@ -232,6 +257,7 @@ void modem_cancel(void)
     if (modem_on_line) {
         ymodem_send_cancel(&ctx);
         modem_on_line = 0;
+        modem_error = 1;
     }
 }
 
@@ -259,6 +285,15 @@ void modem_close(void)
             }
         }
         modem_on_line = 0;
+    }
+
+    // wait longer for the hang-up to complete if some error occurs
+    if (modem_error) {
+        for (int i = 0; i < 5; i++) {
+            __delay_ms(1000);
+        }
+        modem_error = 0;
+        modem_xfer_discard();
     }
 
     // resotre key input mode
