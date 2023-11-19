@@ -49,7 +49,7 @@ static char *aux_file_name = NULL;
 
 static void aux_modem_timer_callback(timer_t *timer) {
     #ifdef CPM_IO_AUX_DEBUG
-    printf("%s: close\n\r", __func__);
+    modem_xfer_printf(MODEM_XFER_LOG_DEBUG, "%s: close\n", __func__);
     #endif
     if (aux_status == AUX_CLOSED) {
         return;
@@ -275,35 +275,51 @@ void aux_modem_write(uint8_t c) {
 
 void aux_modem_read(uint8_t *c) {
     FRESULT fr;
-    UINT bw;
+    int n;
 
  read_one_more:
     if (aux_in_line_feed) {
         // insert LF (\n 0Ah)
         aux_in_line_feed = 0;
         *c = '\n';
-        return;
+        goto  exit;
     }
 
     if (aux_status != AUX_MODEM_RECEIVING) {
         aux_in_line_feed = 0;
-        timer_expire(&aux_timer);  // close the file immediately
+        modem_xfer_printf(MODEM_XFER_LOG_DEBUG, "|%s(%d)\r\n", __func__, __LINE__);
+        timer_expire(&aux_timer);  // close immediately
+        #ifdef CPM_IO_AUX_DEBUG
+        printf("%s: modem_recv_open()\n\r", __func__);
+        printf("key_input_count=%d drop_count=%d\r\n", key_input_count, key_input_drop_count);
+        #endif
         if (modem_recv_open() != 0) {
-            ERROR(printf("modem_recv_open() failed\n\r"));
-            return;
+            printf("modem_recv_open() failed\n\r");
+            *c = 0x1a;  // EOF
+            goto  exit;
         }
         aux_status = AUX_MODEM_RECEIVING;
     }
+    timer_set_relative(&aux_timer, aux_modem_timer_callback, 5000);
 
-    if (modem_read(c, 1) != 1) {
-        ERROR(printf("modem_read() failed\n\r"));
-        goto exit;
+    if ((n = modem_read(c, 1)) != 1) {
+        if (n < 0) {
+            printf("modem_read() failed\n\r");
+        }
+        timer_expire(&aux_timer);  // close immediately
+        *c = 0x1a;  // EOF
+        goto  exit;
     }
+    timer_set_relative(&aux_timer, aux_modem_timer_callback, 10000);
     aux_error = 0;
     if (aux_in_conv(c)) {
         goto read_one_more;
     }
 
  exit:
-    timer_set_relative(&aux_timer, aux_modem_timer_callback, 1000);
+    #ifdef CPM_IO_AUX_DEBUG_VERBOSE
+    modem_xfer_printf(MODEM_XFER_LOG_DEBUG, "aux mr %02Xh %c %d\r\n", *c, isprint(*c) ? *c : '.',
+                      key_input_io_read_count);
+    #endif
+    return;
 }
