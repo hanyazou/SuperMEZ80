@@ -44,10 +44,20 @@
         <itemPath>../drivers/SDCard.c</itemPath>
         <itemPath>../drivers/SPI.c</itemPath>
         <itemPath>../drivers/utils.c</itemPath>
+        <itemPath>../drivers/util_memalloc.c</itemPath>
       </logicalFolder>
       <logicalFolder name="FatFs" displayName="FatFs" projectFiles="true">
         <logicalFolder name="source" displayName="source" projectFiles="true">
           <itemPath>../FatFs/source/ff.c</itemPath>
+        </logicalFolder>
+      </logicalFolder>
+      <logicalFolder name="libraries" displayName="libraries" projectFiles="true">
+        <logicalFolder name="modem_xfer" displayName="modem_xfer" projectFiles="true">
+          <logicalFolder name="src" displayName="src" projectFiles="true">
+            <itemPath>../libraries/modem_xfer/src/ymodem_send.c</itemPath>
+            <itemPath>../libraries/modem_xfer/src/ymodem.c</itemPath>
+            <itemPath>../libraries/modem_xfer/src/modem_xfer.c</itemPath>
+          </logicalFolder>
         </logicalFolder>
       </logicalFolder>
       <logicalFolder name="src" displayName="src" projectFiles="true">
@@ -66,6 +76,10 @@
         <itemPath>../src/memory.c</itemPath>
         <itemPath>../src/monitor.c</itemPath>
         <itemPath>../src/supermez80.c</itemPath>
+        <itemPath>../src/timer.c</itemPath>
+        <itemPath>../src/monitor_fs.c</itemPath>
+        <itemPath>../src/io_aux.c</itemPath>
+        <itemPath>../src/modem.c</itemPath>
       </logicalFolder>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
@@ -78,6 +92,7 @@
     <Elem>../drivers</Elem>
     <Elem>../FatFs</Elem>
     <Elem>../src</Elem>
+    <Elem>../libraries</Elem>
   </sourceRootList>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
@@ -149,7 +164,7 @@
         <property key="define-macros" value=""/>
         <property key="disable-optimizations" value="true"/>
         <property key="extra-include-directories"
-                  value="..\drivers;..\FatFs\source;..\src;generated"/>
+                  value="..\drivers;..\FatFs\source;..\src;generated;../libraries/modem_xfer/src"/>
         <property key="favor-optimization-for" value="-speed,+space"/>
         <property key="garbage-collect-data" value="true"/>
         <property key="garbage-collect-functions" value="true"/>
@@ -310,7 +325,7 @@
         <property key="define-macros" value=""/>
         <property key="disable-optimizations" value="true"/>
         <property key="extra-include-directories"
-                  value="..\drivers;..\FatFs\source;..\src;generated"/>
+                  value="..\drivers;..\FatFs\source;..\src;generated;../libraries/modem_xfer/src"/>
         <property key="favor-optimization-for" value="-speed,+space"/>
         <property key="garbage-collect-data" value="true"/>
         <property key="garbage-collect-functions" value="true"/>
@@ -473,7 +488,7 @@
         <property key="define-macros" value=""/>
         <property key="disable-optimizations" value="true"/>
         <property key="extra-include-directories"
-                  value="..\drivers;..\FatFs\source;..\src;generated"/>
+                  value="..\drivers;..\FatFs\source;..\src;generated;../libraries/modem_xfer/src"/>
         <property key="favor-optimization-for" value="-speed,+space"/>
         <property key="garbage-collect-data" value="true"/>
         <property key="garbage-collect-functions" value="true"/>
@@ -636,7 +651,7 @@
         <property key="define-macros" value=""/>
         <property key="disable-optimizations" value="true"/>
         <property key="extra-include-directories"
-                  value="..\drivers;..\FatFs\source;..\src;generated"/>
+                  value="..\drivers;..\FatFs\source;..\src;generated;../libraries/modem_xfer/src"/>
         <property key="favor-optimization-for" value="-speed,+space"/>
         <property key="garbage-collect-data" value="true"/>
         <property key="garbage-collect-functions" value="true"/>

@@ -12,6 +12,7 @@
                 <sourceRootElem>../drivers</sourceRootElem>
                 <sourceRootElem>../FatFs</sourceRootElem>
                 <sourceRootElem>../src</sourceRootElem>
+                <sourceRootElem>../libraries</sourceRootElem>
             </sourceRootList>
             <confList>
                 <confElem>
