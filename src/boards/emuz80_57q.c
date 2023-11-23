@@ -214,7 +214,8 @@ static __bit emuz80_57q_io_event(void)
 
 static void emuz80_57q_wait_io_event(void)
 {
-    while (!CLC1IF && !invoke_monitor);
+    while (!CLC1IF && !invoke_monitor && !tick);
+    tick = 0;
 }
 
 static void emuz80_57q_clear_io_event(void)

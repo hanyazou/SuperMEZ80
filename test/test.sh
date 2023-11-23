@@ -9,11 +9,13 @@ sleep 2
 expect "\r"
 send "Hello, world!\r\x1a"
 expect "A>"
+sleep 1
 
 # check test file contents
 send "type hello.txt\r"
 expect "Hello, world!\r"
 expect "A>"
+sleep 1
 
 send "dump hello.txt\r"
 expect "0000 48 65 6C 6C 6F 2C 20 77 6F 72 6C 64 21 0D 1A 1A"

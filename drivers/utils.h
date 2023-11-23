@@ -24,6 +24,9 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
+#include <stdint.h>
+#include <ff.h>
+
 #define UTIL_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define UTIL_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define UTIL_ARRAYSIZEOF(a) (sizeof(a)/sizeof(*(a)))
@@ -32,5 +35,11 @@ void util_hexdump(const char *header, const void *addr, unsigned int size);
 void util_hexdump_sum(const char *header, const void *addr, unsigned int size);
 void util_addrdump(const char *header, uint32_t addr_offs, const void *addr, unsigned int size);
 int util_stricmp(const char *a, const char *b);
+
+void util_memalloc_init(void *buf, unsigned int size);
+void *util_memalloc(unsigned int size);
+void util_memfree(void *ptr);
+
+void util_fatfs_error(FRESULT fres, char *msg);
 
 #endif  // __UTILS_H__

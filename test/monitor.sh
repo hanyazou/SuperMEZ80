@@ -17,6 +17,8 @@ expect "A>"
 
 send "sdir\r"
 expect "RESET    COM"
+sleep 1
+
 send -break
 expect "MON>"
 send "status\r"
@@ -29,10 +31,10 @@ expect "A>"
 
 send -break
 expect "MON>"
-send "write 1000h,'Hello, world!\\r\\n'\r"
+send "write 1000h,'Hello, world! \\r\\n'\r"
 expect "MON>"
-send "dump 1000h,15\r"
-expect "001000: 48 65 6c 6c 6f 2c 20 77 6f 72 6c 64 21 0d 0a 3a Hello, world!.."
+send "dump 1000h,16\r"
+expect "001000: 48 65 6c 6c 6f 2c 20 77 6f 72 6c 64 21 20 0d 0a Hello, world! .."
 expect "MON>"
 
 send "step\r"

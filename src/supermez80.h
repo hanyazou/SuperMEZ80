@@ -20,6 +20,8 @@
 #define ENABLE_DISK_DEBUG
 //#define CPM_MEM_DEBUG
 //#define CPM_IO_DEBUG
+//#define CPM_IO_AUX_DEBUG
+//#define CPM_IO_AUX_DEBUG_VERBOSE
 //#define CPM_MMU_DEBUG
 //#define CPM_MEMCPY_DEBUG
 //#define CPM_MMU_EXERCISE
@@ -45,9 +47,8 @@
 
 #define NUM_FILES        6
 #define SECTOR_SIZE      128
-#define TMP_BUF_SIZE     256
 
-#define MEM_CHECK_UNIT   TMP_BUF_SIZE * 16 // 2 KB
+#define MEM_CHECK_UNIT   2048              // 2 KB
 #define MAX_MEM_SIZE     0x00100000        // 1 MB
 
 //
@@ -56,6 +57,10 @@
 
 #define UART_CREG        PIC_IOBASE+0      // 00h Control REG
 #define UART_DREG        PIC_IOBASE+1      // 01h Data REG
+#define IO_PRNSTA        PIC_IOBASE+2      // 02h printer status
+#define IO_PRNDAT        PIC_IOBASE+3      // 03h printer data
+#define IO_AUXSTA        PIC_IOBASE+4      // 04h auxiliary status
+#define IO_AUXDAT        PIC_IOBASE+5      // 05h auxiliary data
 #define DISK_REG_DATA    PIC_IOBASE+8      // 08h fdc-port: data (non-DMA)
 #define DISK_REG_DRIVE   PIC_IOBASE+10     // 0Ah fdc-port: # of drive
 #define DISK_REG_TRACK   PIC_IOBASE+11     // 0Bh fdc-port: # of track
@@ -129,15 +134,25 @@ typedef struct {
     unsigned int len;
 } mem_region_t;
 
+struct timer_s {
+    uint32_t tick_expire;
+    void (*callback)(struct timer_s *timer);
+    struct timer_s *next;
+    void *data;
+};
+typedef struct timer_s timer_t;
+typedef void (*timer_callback_t)(struct timer_s *timer);
+
 //
 // Global variables and function prototypes
 //
 
-extern uint8_t tmp_buf[2][TMP_BUF_SIZE];
 extern debug_t debug;
 extern int turn_on_io_led;
 
 void bus_master(int enable);
+FIL *get_file(void);
+void put_file(FIL *file);
 
 // io
 enum {
@@ -153,12 +168,19 @@ enum {
     IO_STAT_PREPINVOKE    = 80,
     IO_STAT_MONITOR       = 90
 };
+extern unsigned int key_input_count;
+extern unsigned int key_input_read_count;
+extern unsigned int key_input_drop_count;
+extern unsigned int key_input_io_read_count;
 extern void io_init(void);
 extern int io_stat(void);
 extern int getch(void);
+extern int getch_buffered_timeout(char *c, int timeout_ms);
 extern char getch_buffered(void);
 extern void ungetch(char c);
 extern void putch_buffered(char c);
+extern int set_key_input_raw(int raw);
+
 extern drive_t drives[];
 extern const int num_drives;
 extern void io_handle(void);
@@ -172,6 +194,12 @@ extern int io_invoke_target_cpu(const mem_region_t *inparams, unsigned int ninpa
                                 const mem_region_t *outparams, unsigned int noutparams, int bank);
 extern void io_invoke_target_cpu_teardown(int *saved_status);
 extern void io_set_interrupt_data(uint8_t data);
+
+// io aux
+extern void aux_file_write(uint8_t c);
+extern void aux_file_read(uint8_t *c);
+extern void aux_modem_write(uint8_t c);
+extern void aux_modem_read(uint8_t *c);
 
 // monitor
 extern int invoke_monitor;
@@ -204,6 +232,29 @@ void mon_leave(void);
 void mon_cleanup(void);
 #endif  // defined(NO_MONITOR)
 
+// monitor
+#if !defined(NO_MONITOR)
+int mon_cmd_send(int argc, char *args[]);
+int mon_cmd_recv(int argc, char *args[]);
+int mon_cmd_pwd(int argc, char *args[]);
+int mon_cmd_cd(int argc, char *args[]);
+int mon_cmd_ls(int argc, char *args[]);
+int mon_cmd_mkdir(int argc, char *args[]);
+int mon_cmd_rm(int argc, char *args[]);
+int mon_cmd_mv(int argc, char *args[]);
+#endif  // defined(NO_MONITOR)
+
+// modem
+extern uint8_t *modem_buf;
+extern int modem_send_open(char *file_name, uint32_t size);
+extern int modem_recv_open(void);
+extern int modem_send(void);
+extern int modem_write(uint8_t *buf, unsigned int n);
+extern int modem_recv_to_save(void);
+extern int modem_read(uint8_t *buf, unsigned int n);
+extern void modem_cancel(void);
+extern void modem_close(void);
+
 // memory
 extern int mmu_bank;
 extern int mmu_num_banks;
@@ -224,6 +275,13 @@ extern void __read_from_sram(uint32_t src, const void *buf, unsigned int len);
 extern void __read_sram_regions(const mem_region_t *regions, unsigned int n, int bank);
 extern void mmu_bank_config(int nbanks);
 extern void mmu_bank_select(int bank);
+
+// timer
+extern void timer_run(void);
+extern void timer_set_absolute(timer_t *timer, timer_callback_t callback, uint32_t tick);
+extern void timer_set_relative(timer_t *timer, timer_callback_t callback, unsigned int timer_ms);
+extern int timer_cancel(timer_t *timer);
+extern int timer_expire(timer_t *timer);
 
 // board
 extern const uint8_t *board_ipl;
@@ -279,6 +337,9 @@ extern int (*board_clock_op_hook)(int clocks);
 #define BOARD_CLOCK_HIGH   -3
 #define BOARD_CLOCK_LOW    -4
 #define BOARD_CLOCK_INVERT -5
+extern void (*board_tick_hook)(uint32_t *time);
+#define board_tick(time) (*board_tick_hook)(time)
+#define BOARD_TICK_HZ 100
 
 // Address read and write
 extern uint8_t (*board_addr_l_pins_hook)(void);

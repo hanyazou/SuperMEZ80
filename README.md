@@ -288,15 +288,85 @@ build/z8s180_57q.18f57q43/CPMDISKS.180/drivea.dsk は、シリアル入出力や
 通常の 00h 付近から 80h 付近に変更したものです。
 具体的な修正内容は、cpm2 フォルダのboot\_z180.asm, bios\_z180.asmの履歴を参照してください。
 
+## シリアルコンソール
+
+シリアル端末は、cpm-v2.6.1 までは 9600 8N1、cpm-v2.7.0 以降のバージョンでは 115200 8N1 に設定してしださい。
+
+## モニタ
+
+端末から Break を入力するとモニタが起動し、
+モニタのプロンプト "MON>" でモニタコマンドを実行できます。
+モニタはターゲットCPU（Z80）ではなく、PICで実行されています。
+help を入力すると使用できるコマンド一覧が表示されます。
+
+## ファイル転送
+
+シリアル端末から、CP/Mおよびモニタにファイルを転送することができます。
+
+### CP/M から端末にファイルを転送する
+
+CP/M とのファイル転送には CP/M のデバイスを使用します。
+デバイスは z80pack の CP/M のものをそのまま使用します。
+CP/M 2.2 では PUN:、CP/M 3.0 では AUX: を使用します。
+
+デバイスから読み込むと、
+以下のように YMODEM の転送開始を促す 'C' が繰り返し出力されます。
+画面に 'C' が表示されたら、シリアル端末の  YMODEM ファイルアップロード機能で
+ファイルを転送してください。
+
+```
+A>PIP TEST.TXT=AUX:
+CCCCCCCCCCCCC
+receiving file 'hello.txt', 15 bytes
+total 1 file received
+
+
+A>TYPE TEST.TXT
+Hello, world!
+
+A>
+```
+
+### 端末からCP/Mへファイルを転送する
+
+CP/M 2.2 では RDR:、CP/M 3.0 では AUX: を使用します。
+デバイスに書き込むと、
+以下のように waiting for file transfer request via the terminal ... とメッセージが
+表示されるので、シリアル端末の YMODEM ファイルダウンロード機能で
+ファイルを転送してください。
+ダウンロードされるファイル名は、PIP コマンドに指定したファイル名ではなく、
+AUXOUT.TXT になります。
+
+```
+A>PIP AUX:=HELLO.TXT
+waiting for file transfer request via the terminal ...
+sending file 'AUXOUT.TXT' ...
+total 1 file, 15 bytes sent
+
+A>
+```
+
+### モニタでファイルを転送する
+
+モニタでは、recv コマンドで端末からアップロード、send コマンドで端末にダウンロードできます。
+
+### 制約
+* この機能を利用するためには、
+  シリアル端末がYMODEMプロトコルによるファイルのアップロード、
+  ダウンロード機能を備えている必要があります。
+* CP/Mの制約により、CP/Mとのファイルの送受信では、テキストファイルしか扱えません。
+  00h は無視されます。
+  また、CP/Mの CR,LF (ODh, OAh) は、端末側では LF (0Ah) に変換されます。
+
 ## サポート状況
 
 | 基板           | RAM最大 | SD Card slot | CP/M 2.2 PIO | CP/M 2.2 DMA | CP/M 3.0 | モニタ | テスト     |
 | ---            | ---     | ---          | ---          | ---          | ---      | ---    | ---        |
-| SuperMEZ80-SPI | 512KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
 | SuperMEZ80-CPM | 256KB   | available    | ok           | ok           | ok       | ok     | 毎リリース |
-| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | ok     | cpm-v2.6.0 |
-| Z8S180-57Q     | 64KB    | available    | ok *2        | ok *1        | n/a      | NG *3  | cpm-v2.6.0 |
-| MEZ80SD        | 64KB    | available    | ok           | n/a          | n/a      | n/a    | cpm-v2.6.0 |
+| SuperMEZ80-SPI | 512KB   | available    | ok           | ok           | ok       | ok     | cpm-v2.7.0 |
+| EMUZ80-57Q     | 64KB    | available    | ok           | ok           | n/a      | ok     | cpm-v2.7.0 |
+| Z8S180-57Q     | 64KB    | available    | ok *2        | ok *1        | n/a      | NG *3  | cpm-v2.7.0 |
+| MEZ80SD        | 64KB    | available    | ok           | n/a          | n/a      | n/a    | cpm-v2.7.0 |
 
 *1 CPMDISKS.180/drivea.dsk が必要です  
 *2 PIO 版の CPMDISKS.180/drivea.dsk を作成する必要があります（通常はDMAで使用してください）  

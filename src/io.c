@@ -56,9 +56,14 @@ static int io_stat_ = IO_STAT_INVALID;
 static uint8_t hw_ctrl_lock = HW_CTRL_LOCKED;
 
 // console input/output buffers
-static char key_input_buffer[80];
+static char key_input_buffer[192];
 static unsigned int key_input = 0;
 static unsigned int key_input_buffer_head = 0;
+static unsigned char key_input_raw = 0;
+unsigned int key_input_count = 0;
+unsigned int key_input_read_count = 0;
+unsigned int key_input_drop_count = 0;
+unsigned int key_input_io_read_count = 0;
 static char con_output_buffer[80];
 static unsigned int con_output = 0;
 static unsigned int con_output_buffer_head = 0;
@@ -118,9 +123,16 @@ void putch_buffered(char c) {
     GIE = 1;                    // Enable interrupt
 }
 
-char getch_buffered(void) {
+int set_key_input_raw(int raw) {
+    int res = (int)key_input_raw;
+    key_input_raw = (unsigned char)raw;
+    return res;
+}
+
+int getch_buffered_timeout(char *c, int timeout_ms) {
     char res;
-    while (1) {
+    int retry = 0;
+    while (timeout_ms == 0 || retry++ < timeout_ms) {
         GIE = 0;                // Disable interrupt
         if (0 < key_input) {
             res = key_input_buffer[key_input_buffer_head];
@@ -128,19 +140,28 @@ char getch_buffered(void) {
             key_input--;
             U3RXIE = 1;         // Enable Rx interrupt
             GIE = 1;            // Enable interrupt
-            return res;
+            *c = res;
+            key_input_read_count++;
+            return 1;
         }
         if (invoke_monitor) {
             GIE = 1;            // Enable interrupt
-            return 0;           // This input is dummy to escape Z80 from  IO read instruction
+            *c = 0;
+            return 1;           // This input is dummy to escape Z80 from  IO read instruction
                                 // and might be a garbage. Sorry.
         }
         GIE = 1;                // Enable interrupt
         __delay_us(1000);
     }
 
-    // not reached
-    return res;
+    // no input, timeout
+    return 0;
+}
+
+char getch_buffered(void) {
+    char c;
+    getch_buffered_timeout(&c, 0);
+    return c;
 }
 
 void ungetch(char c) {
@@ -148,10 +169,8 @@ void ungetch(char c) {
     if (key_input < sizeof(key_input_buffer)) {
         key_input_buffer[(key_input_buffer_head + key_input) % sizeof(key_input_buffer)] = c;
         key_input++;
-    }
-    if ((sizeof(key_input_buffer) * 4 / 5) <= key_input) {
-        // Disable key input interrupt if key buffer is full
-        U3RXIE = 0;
+    } else {
+        key_input_drop_count++;
     }
     GIE = 1;                    // Enable interrupt
 }
@@ -244,7 +263,9 @@ void __interrupt(irq(default),base(8)) Default_ISR(){
     // Read UART input if Rx interrupt flag is set
     if (U3RXIF) {
         uint8_t c = U3RXB;
-        if (c != 0x00) {        // Save input key to the buffer if the input is not a break key
+        key_input_count++;
+        if (key_input_raw || c != 0x00) {
+            // Save input key to the buffer if the input is not a break key
             ungetch(c);
         } else {
             invoke_monitor = 1;
@@ -339,7 +360,7 @@ void io_handle() {
     set_data_dir(0x00);           // Set as output
     switch (io_addr) {
     case UART_CREG:
-        if (key_input) {
+        if (key_input && !key_input_raw) {
             set_data_pins(0xff);  // input available
         } else {
             set_data_pins(0x00);  // no input available
@@ -347,8 +368,19 @@ void io_handle() {
         break;
     case UART_DREG:
         con_flush_buffer();
-        c = getch_buffered();
+        while (getch_buffered_timeout((char *)&c, 10) == 0) {
+            timer_run();
+        }
         set_data_pins(c);         // Out the character
+        key_input_io_read_count++;
+        break;
+    case IO_AUXDAT:
+        #if AUX_FILE
+        aux_file_read(&c);
+        #else
+        aux_modem_read(&c);
+        #endif
+        set_data_pins(c);
         break;
     case DISK_REG_DATA:
         if (disk_datap && (disk_datap - disk_buf) < SECTOR_SIZE) {
@@ -398,6 +430,13 @@ void io_handle() {
     case UART_DREG:
         putch_buffered(io_data);
         io_output_chars++;
+        break;
+    case IO_AUXDAT:
+        #if AUX_FILE
+        aux_file_write(io_data);
+        #else
+        aux_modem_write(io_data);
+        #endif
         break;
     case DISK_REG_DATA:
         if (disk_datap && (disk_datap - disk_buf) < SECTOR_SIZE) {

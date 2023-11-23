@@ -44,6 +44,7 @@ DRIVERS_DIR ?= $(PJ_DIR)/drivers
 SRC_DIR ?= $(PJ_DIR)/src
 BUILD_DIR ?= $(PJ_DIR)/$(shell echo build/$(BOARD).$(PIC) | tr A-Z a-z)
 CPM2_DIR ?= $(PJ_DIR)/cpm2
+MODEM_XFER_DIR ?= $(PJ_DIR)/libraries/modem_xfer/src
 HEXFILE ?= $(shell echo $(BOARD)-$(PIC).hex | tr A-Z a-z)
 
 ASM_DIR ?= $(PJ_DIR)/tools/zasm
@@ -52,9 +53,19 @@ ASM_OPTS ?= --opcodes --bin --target=ram --reqcolon
 
 FATFS_SRCS ?= $(FATFS_DIR)/source/ff.c
 DISK_SRCS ?= \
-    $(DRIVERS_DIR)/diskio.c $(DRIVERS_DIR)/utils.c
+    $(DRIVERS_DIR)/diskio.c $(DRIVERS_DIR)/utils.c $(DRIVERS_DIR)/util_memalloc.c
+MODEM_XFER_SRC ?= \
+     $(MODEM_XFER_DIR)/modem_xfer.c \
+     $(MODEM_XFER_DIR)/ymodem_send.c \
+     $(MODEM_XFER_DIR)/ymodem.c
 SRCS ?= $(SRC_DIR)/supermez80.c $(SRC_DIR)/disas.c $(SRC_DIR)/disas_z80.c $(SRC_DIR)/memory.c \
-    $(SRC_DIR)/monitor.c $(SRC_DIR)/io.c $(SRC_DIR)/board.c
+    $(SRC_DIR)/monitor.c \
+    $(SRC_DIR)/monitor_fs.c \
+    $(SRC_DIR)/modem.c \
+    $(SRC_DIR)/timer.c \
+    $(SRC_DIR)/io.c \
+    $(SRC_DIR)/io_aux.c \
+    $(SRC_DIR)/board.c
 
 #
 # board dependent stuff
@@ -88,12 +99,14 @@ NO_MONITOR ?= 0
 ifneq ($(NO_MONITOR), 0)
     CONFIG_NO_MONITOR=1
 endif
+#CONFIG_AUX_FILE=1
 
-INCS ?=-I$(SRC_DIR) -I$(DRIVERS_DIR) -I$(FATFS_DIR)/source -I$(BUILD_DIR)
+INCS ?=-I$(SRC_DIR) -I$(DRIVERS_DIR) -I$(FATFS_DIR)/source -I$(BUILD_DIR) -I$(MODEM_XFER_DIR)
 
 HDRS ?= $(SRC_DIR)/supermez80.h $(SRC_DIR)/picconfig.h \
         $(DRIVERS_DIR)/SPI.c $(DRIVERS_DIR)/SPI.h $(DRIVERS_DIR)/SDCard.h \
         $(DRIVERS_DIR)/mcp23s08.h \
+        $(MODEM_XFER_DIR)/modem_xfer.h \
         $(SRC_DIR)/disas.h $(SRC_DIR)/disas_z80.h \
         $(BUILD_DIR)/ipl.inc $(BUILD_DIR)/trampoline.inc $(BUILD_DIR)/mmu_exercise.inc \
         $(BUILD_DIR)/trampoline_cleanup.inc \
@@ -114,9 +127,9 @@ all: $(BUILD_DIR)/$(HEXFILE) \
     $(BUILD_DIR)/CPMDISKS.PIO/drivea.dsk \
     $(BUILD_DIR)/CPMDISKS.180/drivea.dsk
 
-$(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(HDRS) $(ASM_HDRS)
+$(BUILD_DIR)/$(HEXFILE): $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(MODEM_XFER_SRC) $(HDRS) $(ASM_HDRS)
 	mkdir -p $(BUILD_DIR) && cd $(BUILD_DIR) && \
-        $(XC8) $(XC8_OPTS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) && \
+        $(XC8) $(XC8_OPTS) $(INCS) $(SRCS) $(FATFS_SRCS) $(DISK_SRCS) $(MODEM_XFER_SRC) && \
         mv supermez80.hex $(HEXFILE)
 
 $(BUILD_DIR)/%.inc: $(SRC_DIR)/%.z80 $(ASM) $(ASM_HDRS)
@@ -193,6 +206,9 @@ $(BUILD_DIR)/config.h:
 	fi
 	if [ "$(CONFIG_NO_MONITOR)" != "" ]; then \
 	    echo "#define NO_MONITOR $(CONFIG_NO_MONITOR)" >> $@; \
+	fi
+	if [ "$(CONFIG_AUX_FILE)" != "" ]; then \
+	    echo "#define AUX_FILE $(CONFIG_AUX_FILE)" >> $@; \
 	fi
 
 $(BUILD_DIR)/config_asm.inc: Makefile

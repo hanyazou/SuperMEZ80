@@ -30,13 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <utils.h>
+#include <assert.h>
 
-static FATFS fs;
-static DIR fsdir;
-static FILINFO fileinfo;
-static FIL files[NUM_FILES];
-static int num_files = 0;
-uint8_t tmp_buf[2][TMP_BUF_SIZE];
 debug_t debug = {
     0,  // disk
     0,  // disk_read
@@ -110,6 +105,7 @@ void main(void)
         // Wait for IO access
         board_wait_io_event();
         io_handle();
+        timer_run();
     }
 }
 
@@ -118,14 +114,43 @@ void bus_master(int enable)
     board_bus_master(enable);
 }
 
+static FIL files[NUM_FILES];
+static uint16_t file_available = (1 << NUM_FILES) - 1;
+FIL *get_file(void)
+{
+    for (int i = 0; i < NUM_FILES; i++) {
+        if (file_available & (1L << i)) {
+            file_available &= ~(1L << i);
+            // printf("%s: allocate %d, available=%04x\n\r", __func__, i, file_available);
+            return &files[i];
+        }
+    }
+
+    return NULL;
+}
+
+void put_file(FIL *file)
+{
+    for (int i = 0; i < NUM_FILES; i++) {
+        if (file == &files[i]) {
+            assert(!(file_available & (1L << i)));
+            file_available |= (1L << i);
+            return ;
+        }
+    }
+}
+
 void sys_init()
 {
+    static uint8_t memory_pool[512];
     board_init();
     board_sys_init();
+    util_memalloc_init(memory_pool, sizeof(memory_pool));
 }
 
 int disk_init(void)
 {
+    static FATFS fs;
     board_disk_init();
     if (f_mount(&fs, "0://", 1) != FR_OK) {
         printf("Failed to mount SD Card.\n\r");
@@ -139,6 +164,8 @@ int menu_select(void)
 {
     int i;
     unsigned int drive;
+    DIR fsdir;
+    FILINFO fileinfo;
 
     //
     // Select disk image folder
@@ -214,17 +241,27 @@ int menu_select(void)
     //
     // Open disk images
     //
-    for (drive = 0; drive < num_drives && num_files < NUM_FILES; drive++) {
+    char *buf = util_memalloc(26);
+    for (drive = 0; drive < num_drives; drive++) {
         char drive_letter = (char)('A' + drive);
-        char * const buf = (char *)tmp_buf[0];
         sprintf(buf, "%s/DRIVE%c.DSK", fileinfo.fname, drive_letter);
-        if (f_open(&files[num_files], buf, FA_READ|FA_WRITE) == FR_OK) {
-            printf("Image file %s/DRIVE%c.DSK is assigned to drive %c\n\r",
-                   fileinfo.fname, drive_letter, drive_letter);
-            drives[drive].filep = &files[num_files];
-            num_files++;
+        if (f_stat(buf, NULL) != FR_OK) {
+            sprintf(buf, "CPMDISKS.CMN/DRIVE%c.DSK", drive_letter);
+            if (f_stat(buf, NULL) != FR_OK) {
+                continue;
+            }
+        }
+        FIL *filep = get_file();
+        if (filep == NULL) {
+            printf("Too many files\n\r");
+            break;
+        }
+        if (f_open(filep, buf, FA_READ|FA_WRITE) == FR_OK) {
+            printf("Image file %s is assigned to drive %c\n\r", buf, drive_letter);
+            drives[drive].filep = filep;
         }
     }
+    util_memfree(buf);
     if (drives[0].filep == NULL) {
         printf("No boot disk.\n\r");
         return -4;
